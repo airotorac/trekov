@@ -170,10 +170,24 @@ except to hide Google-only controls.
 
    ```
    VITE_GOOGLE_MAPS_KEY=...
+   VITE_GOOGLE_MAPS_MAP_ID=...   # optional, see 3D below
    ```
 
    Vite inlines it at build time, so it ships in the bundle — which is fine for
    a referrer-restricted browser key, and why the restriction matters.
+
+**3D view.** The navigation screen has a 2D/3D toggle that tilts the map to 45°
+and rotates it to your heading (in 3D the vehicle stays pointing up the screen
+and the map turns underneath; in 2D the map is north-up and the vehicle turns).
+
+With only an API key, Google serves *raster* tiles, whose 45° imagery exists
+for a limited set of cities — so outside those the tilt quietly does nothing.
+For real 3D everywhere, create a **Map ID** (Google Cloud → Google Maps
+Platform → Map management → Create Map ID, type **JavaScript**, rendering
+**Vector**, with tilt and rotation enabled) and set `VITE_GOOGLE_MAPS_MAP_ID`.
+The driver switches to vector rendering automatically and `supports3D()` starts
+reporting true everywhere; without it, the toggle only appears on satellite and
+hybrid, where raster tilt has a chance of working.
 
 Without a key the app runs entirely on Leaflet, which is what the Leaflet
 tests exercise.

@@ -11,8 +11,6 @@ import Portal from './Portal'
 
 /** Street level. Esri imagery tops out at 18; 17 keeps a block of context. */
 const NAV_ZOOM = 17
-/** How far ahead of the vehicle to centre, as a fraction of the map height. */
-const LOOK_AHEAD = 0.2
 const PIN_HTML = '<div class="tk-pin"><div class="tk-pin-img"></div></div>'
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
@@ -64,6 +62,11 @@ export default function Navigate({ place, trip, me, onClose }) {
   const [colour, setColour] = useState(() => pref('trekov.vehicleColour', 'green'))
   const [mapType, setMapType] = useState(() => pref('trekov.navMapType', 'roadmap'))
   const [traffic, setTraffic] = useState(() => pref('trekov.traffic', '1') === '1')
+  // Collapsed by default: the map is the thing you need while driving.
+  const [expanded, setExpanded] = useState(false)
+  // Vehicle and colour live behind the vehicle button rather than on the bar.
+  const [picker, setPicker] = useState(false)
+  const [view3d, setView3d] = useState(() => pref('trekov.view3d', '0') === '1')
 
   const dest = useMemo(() => ({ lat: place.lat, lng: place.lng }), [place.lat, place.lng])
   const bearingToDest = pos ? bearing(pos, dest) : null
@@ -73,6 +76,11 @@ export default function Navigate({ place, trip, me, onClose }) {
   useEffect(() => { localStorage.setItem('trekov.vehicleColour', colour) }, [colour])
   useEffect(() => { localStorage.setItem('trekov.navMapType', mapType); drv.current?.setMapType(mapType) }, [mapType, engine])
   useEffect(() => { localStorage.setItem('trekov.traffic', traffic ? '1' : '0'); drv.current?.setTraffic(traffic) }, [traffic, engine])
+  useEffect(() => {
+    localStorage.setItem('trekov.view3d', view3d ? '1' : '0')
+    drv.current?.setTilt(view3d ? 45 : 0)
+    if (!view3d) drv.current?.setHeading(0)
+  }, [view3d, engine])
 
   /* ------------------------------------------------------------ position */
   useEffect(() => {
@@ -177,12 +185,17 @@ export default function Navigate({ place, trip, me, onClose }) {
   useEffect(() => {
     const d = drv.current
     if (!d || !pos) return
-    const rotate = heading ?? bearingToDest ?? 0
-    // Dust is real elements rather than one pseudo-element: several puffs on
-    // staggered delays billow, where a single blurred blob just sat there.
+    const course = heading ?? bearingToDest ?? 0
+    // In 3D the map itself rotates to your heading, so the vehicle stays
+    // pointing up the screen; in 2D the map is north-up and the vehicle turns.
+    const rotate = view3d ? 0 : course
+    if (view3d) d.setHeading(course)
+    // Speed streaks rather than a smoke plume: light trails read as motion,
+    // where billowing particles just read as exhaust.
     const dust = moving
-      ? `<span class="tk-dust ${vehicle === 'bike' ? 'is-bike' : ''}">
-           <i style="--dx:-6px"></i><i style="--dx:5px"></i><i style="--dx:-2px"></i><i style="--dx:7px"></i><i style="--dx:1px"></i>
+      ? `<span class="tk-speed ${vehicle === 'bike' ? 'is-bike' : ''}">
+           <i style="--dx:-8px;--d:0ms"></i><i style="--dx:0px;--d:110ms"></i>
+           <i style="--dx:8px;--d:220ms"></i><i style="--dx:-4px;--d:330ms"></i><i style="--dx:4px;--d:440ms"></i>
          </span>`
       : ''
     const html = `<div class="tk-me" style="--rot:${rotate}deg">
@@ -200,14 +213,11 @@ export default function Navigate({ place, trip, me, onClose }) {
     if (follow) {
       const z = resetZoom.current ? NAV_ZOOM : d.getZoom()
       resetZoom.current = false
-      if (z !== d.getZoom()) d.setView([pos.lat, pos.lng], z, { animate: false })
-      // Centre a little ahead of the vehicle so it rides in the lower part of
-      // the map and the road you are about to drive fills the rest.
-      const rad = (rotate * Math.PI) / 180
-      const dist = d.size().y * LOOK_AHEAD
-      d.setView(d.offsetLatLng([pos.lat, pos.lng], Math.sin(rad) * dist, -Math.cos(rad) * dist), z)
+      // Dead centre: the vehicle is the fixed point and the map moves under
+      // it, so it never drifts off while you are driving.
+      d.setView([pos.lat, pos.lng], z)
     }
-  }, [pos, follow, heading, vehicle, colour, bearingToDest, moving, engine])
+  }, [pos, follow, heading, vehicle, colour, bearingToDest, moving, engine, view3d])
 
   /* --------------------------------------------------------------- route */
   // The route depends on the vehicle (Google serves bikes differently), so a
@@ -271,6 +281,10 @@ export default function Navigate({ place, trip, me, onClose }) {
 
   const frac = route && remaining != null ? remaining / Math.max(route.distance, 1) : 0
   const eta = route ? formatDuration((route.durationInTraffic ?? route.duration) * frac) : null
+  // Progress along the route, derived rather than odometered: distance left is
+  // measured from the nearest point on the line, so the rest is behind you.
+  const travelled = route && remaining != null ? Math.max(0, route.distance - remaining) : null
+  const donePct = route ? Math.min(100, Math.max(0, (1 - frac) * 100)) : 0
 
   /* ------------------------------------------------------------- actions */
   function recentre() { resetZoom.current = true; setFollow(true) }
@@ -303,6 +317,7 @@ export default function Navigate({ place, trip, me, onClose }) {
   }
 
   const mapTypeLabel = drv.current?.mapTypes().find((t) => t.id === mapType)?.label ?? 'Map'
+  const CurrentVehicle = (VEHICLES.find((v) => v.id === vehicle) ?? VEHICLES[0]).Icon
 
   return (
     <Portal>
@@ -352,6 +367,13 @@ export default function Navigate({ place, trip, me, onClose }) {
             </div>
 
             <div className="absolute right-3 bottom-3 z-[500] flex flex-col items-end gap-2">
+              {engine === 'google' && drv.current?.supports3D() && (
+                <button onClick={() => setView3d((v) => !v)} aria-pressed={view3d}
+                        className={`rounded-full backdrop-blur-xl border text-xs font-semibold px-3 py-2 transition
+                                    ${view3d ? 'bg-brand text-ink border-brand' : 'bg-ink/90 border-line hover:border-brand'}`}>
+                  {view3d ? '3D' : '2D'}
+                </button>
+              )}
               {engine === 'google' && (
                 <>
                   <button onClick={() => setTraffic((v) => !v)} aria-pressed={traffic}
@@ -377,104 +399,143 @@ export default function Navigate({ place, trip, me, onClose }) {
             </div>
           </div>
 
-          <div className="shrink-0 border-t border-line p-4 space-y-3 max-h-[46vh] overflow-y-auto
-                          pb-[max(1rem,env(safe-area-inset-bottom))]">
-            {gpsError && <p className="text-sm text-sun">{gpsError}</p>}
-
-            <div className="flex items-center gap-4">
-              {/* Bearing arrow. Needs no network — the offline fallback. */}
-              <div className="relative size-16 rounded-full border border-line grid place-items-center shrink-0">
-                <span className="text-2xl leading-none transition-transform"
-                      style={{ transform: `rotate(${bearingToDest ?? 0}deg)` }} aria-hidden="true">↑</span>
-                <span className="absolute -bottom-2 text-[10px] text-mist bg-ink px-1">
-                  {bearingToDest != null ? compassPoint(bearingToDest) : '—'}
-                </span>
+          <div className="shrink-0 border-t border-line pb-[env(safe-area-inset-bottom)]">
+            {route && (
+              <div className="h-1 w-full bg-raised" aria-hidden="true">
+                <div className="h-full bg-brand transition-[width] duration-500" style={{ width: `${donePct}%` }} />
               </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-2xl font-semibold tabular-nums leading-none">
+            )}
+            {gpsError && <p className="px-3 pt-2 text-xs text-sun">{gpsError}</p>}
+
+            {/* Collapsed: one row. Everything else is one tap away, so the
+                map keeps as much of the screen as possible while driving. */}
+            <button onClick={() => setExpanded((v) => !v)} aria-expanded={expanded}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 text-left">
+              <span className="relative size-9 rounded-full border border-line grid place-items-center shrink-0">
+                <span className="text-base leading-none" style={{ transform: `rotate(${bearingToDest ?? 0}deg)` }}
+                      aria-hidden="true">↑</span>
+              </span>
+
+              <span className="min-w-0 flex-1">
+                <span className="block text-xl font-semibold tabular-nums leading-none">
                   {remaining != null ? formatDistance(remaining) : '—'}
-                </p>
-                <p className="text-xs text-mist mt-1">
+                </span>
+                <span className="block text-[11px] text-mist truncate mt-0.5">
                   {routeState === 'loading' && 'Finding a route…'}
-                  {routeState === 'none' && 'No road route — showing straight-line direction.'}
+                  {routeState === 'none' && 'Straight-line direction only'}
+                  {routeState === 'idle' && 'Waiting for your location…'}
                   {routeState === 'ready' && route && (
                     <>
-                      {eta}{route.durationInTraffic ? ' in current traffic' : ' by road'}
-                      {route.stale ? ' · cached route' : ''}
-                      {' · '}{formatDistance(straight)} direct
+                      {eta}{route.durationInTraffic ? ' in traffic' : ''} left
+                      {travelled != null && ` · ${formatDistance(travelled)} done`}
+                      {route.stale ? ' · cached' : ''}
+                      {members.length > 0 && ` · ${members.length} with you`}
                     </>
                   )}
-                  {routeState === 'idle' && 'Waiting for your location…'}
-                </p>
-              </div>
-            </div>
-
-            {/* Vehicle and colour: drive the map marker, and are remembered. */}
-            <div className="flex items-center gap-2">
-              {VEHICLES.map(({ id, label, Icon }) => {
-                const on = vehicle === id
-                return (
-                  <button key={id} onClick={() => setVehicle(id)} aria-pressed={on}
-                          className={`flex-1 flex items-center justify-center gap-2 rounded-2xl border py-2 transition
-                                      ${on ? 'border-brand bg-brand/12' : 'border-line hover:border-mist'}`}>
-                    <Icon size={34} id={`sel-${id}`} colour={colour} />
-                    <span className={`text-sm font-semibold ${on ? 'text-brand' : 'text-mist'}`}>{label}</span>
-                  </button>
-                )
-              })}
-            </div>
-            <div className="flex items-center gap-2 overflow-x-auto no-bar py-0.5" role="radiogroup" aria-label="Vehicle colour">
-              {COLOURS.map((c) => (
-                <button key={c.id} onClick={() => setColour(c.id)} role="radio" aria-checked={colour === c.id}
-                        aria-label={c.label} title={c.label}
-                        className={`shrink-0 size-7 rounded-full border-2 transition
-                                    ${colour === c.id ? 'border-white scale-110' : 'border-transparent hover:border-mist'}`}
-                        style={{ background: `linear-gradient(135deg, ${c.tint.hi}, ${c.tint.mid} 55%, ${c.tint.lo})` }} />
-              ))}
-            </div>
-
-            {place.bestTime && (
-              <p className="inline-flex items-center gap-1.5 text-[11px] text-sun/90 bg-sun/10 rounded-full px-2.5 py-1">
-                <CalendarIcon size={12} /> Best {place.bestTime}
-              </p>
-            )}
-
-            {trip && (
-              <div>
-                <p className="text-xs uppercase tracking-[0.14em] text-mist mb-2">Travelling together · {trip.title}</p>
-                {members.length === 0 ? (
-                  <p className="text-xs text-mist">
-                    Nobody else is navigating yet. Anyone who opens this trip and starts navigating shows up here.
-                  </p>
-                ) : (
-                  <ul className="space-y-1.5">
-                    {members.map((m) => (
-                      <li key={m.id} className="flex items-center gap-2 text-sm">
-                        <span className="size-2.5 rounded-full shrink-0" style={{ background: colourFor(m.id) }} />
-                        <span className="truncate flex-1">{m.name}</span>
-                        <span className="text-xs text-mist tabular-nums shrink-0">
-                          {pos ? formatDistance(distance(pos, m)) : '—'} away
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            )}
-
-            <div className="flex items-center gap-2 pt-1">
-              <button onClick={saveOffline} disabled={!!saving && !saving.finished && !saving.error}
-                      className="flex items-center gap-2 rounded-full border border-line px-4 py-2 text-sm font-semibold
-                                 hover:border-brand hover:text-brand disabled:opacity-50">
-                <Logo size={15} /> Save map offline
-              </button>
-              {saving && !saving.error && (
-                <span className="text-xs text-mist tabular-nums">
-                  {saving.finished ? `Saved${saving.failed ? ` · ${saving.failed} tiles failed` : ''}` : `${saving.done}/${saving.total}`}
                 </span>
-              )}
-              {saving?.error && <span className="text-xs text-rose">{saving.error}</span>}
-            </div>
+              </span>
+
+              {/* One button showing what you are driving; tapping it opens the
+                  vehicle and colour picker. */}
+              <span role="button" tabIndex={0} aria-label="Change vehicle" aria-expanded={picker}
+                    onClick={(e) => { e.stopPropagation(); setPicker((v) => !v) }}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); setPicker((v) => !v) } }}
+                    className={`grid place-items-center size-10 rounded-xl border shrink-0 cursor-pointer transition
+                                ${picker ? 'border-brand bg-brand/12' : 'border-line hover:border-mist'}`}>
+                <CurrentVehicle size={28} id="sel-cur" colour={colour} />
+              </span>
+
+              <span className={`text-mist shrink-0 transition-transform ${expanded ? 'rotate-180' : ''}`} aria-hidden="true">⌃</span>
+            </button>
+
+            {picker && (
+              <div className="px-3 pb-3 space-y-2.5 border-t border-line pt-3">
+                <div className="flex items-center gap-2">
+                  {VEHICLES.map(({ id, label, Icon }) => (
+                    <button key={id} onClick={() => setVehicle(id)} aria-pressed={vehicle === id}
+                            className={`flex-1 flex items-center justify-center gap-2 rounded-xl border py-1.5 transition
+                                        ${vehicle === id ? 'border-brand bg-brand/12' : 'border-line hover:border-mist'}`}>
+                      <Icon size={26} id={`pick-${id}`} colour={colour} />
+                      <span className={`text-xs font-semibold ${vehicle === id ? 'text-brand' : 'text-mist'}`}>{label}</span>
+                    </button>
+                  ))}
+                </div>
+                <div className="flex items-center gap-2 overflow-x-auto no-bar" role="radiogroup" aria-label="Vehicle colour">
+                  {COLOURS.map((c) => (
+                    <button key={c.id} onClick={() => setColour(c.id)} role="radio" aria-checked={colour === c.id}
+                            aria-label={c.label} title={c.label}
+                            className={`shrink-0 size-6 rounded-full border-2 transition
+                                        ${colour === c.id ? 'border-white scale-110' : 'border-transparent hover:border-mist'}`}
+                            style={{ background: `linear-gradient(135deg, ${c.tint.hi}, ${c.tint.mid} 55%, ${c.tint.lo})` }} />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {expanded && (
+              <div className="px-3 pb-3 space-y-3 max-h-[42vh] overflow-y-auto border-t border-line pt-3">
+                {route && (
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    {[
+                      ['Travelled', travelled != null ? formatDistance(travelled) : '—'],
+                      ['Remaining', remaining != null ? formatDistance(remaining) : '—'],
+                      ['Total route', formatDistance(route.distance)],
+                    ].map(([label, value]) => (
+                      <div key={label} className="rounded-xl border border-line py-1.5">
+                        <p className="text-sm font-semibold tabular-nums leading-none">{value}</p>
+                        <p className="text-[10px] uppercase tracking-[0.1em] text-mist mt-1">{label}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <p className="text-[11px] text-mist tabular-nums">{formatDistance(straight)} straight-line</p>
+
+                {place.bestTime && (
+                  <p className="inline-flex items-center gap-1.5 text-[11px] text-sun/90 bg-sun/10 rounded-full px-2.5 py-1">
+                    <CalendarIcon size={12} /> Best {place.bestTime}
+                  </p>
+                )}
+
+                {trip && (
+                  <div>
+                    <p className="text-[10px] uppercase tracking-[0.14em] text-mist mb-1.5">
+                      Travelling together · {trip.title}
+                    </p>
+                    {members.length === 0 ? (
+                      <p className="text-[11px] text-mist">
+                        Nobody else is navigating yet. Anyone who opens this trip shows up here.
+                      </p>
+                    ) : (
+                      <ul className="space-y-1">
+                        {members.map((m) => (
+                          <li key={m.id} className="flex items-center gap-2 text-xs">
+                            <span className="size-2 rounded-full shrink-0" style={{ background: colourFor(m.id) }} />
+                            <span className="truncate flex-1">{m.name}</span>
+                            <span className="text-mist tabular-nums shrink-0">
+                              {pos ? formatDistance(distance(pos, m)) : '—'} away
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
+
+                <div className="flex items-center gap-2">
+                  <button onClick={saveOffline} disabled={!!saving && !saving.finished && !saving.error}
+                          className="flex items-center gap-2 rounded-full border border-line px-3 py-1.5 text-xs font-semibold
+                                     hover:border-brand hover:text-brand disabled:opacity-50">
+                    <Logo size={13} /> Save map offline
+                  </button>
+                  {saving && !saving.error && (
+                    <span className="text-[11px] text-mist tabular-nums">
+                      {saving.finished ? `Saved${saving.failed ? ` · ${saving.failed} failed` : ''}` : `${saving.done}/${saving.total}`}
+                    </span>
+                  )}
+                  {saving?.error && <span className="text-[11px] text-rose">{saving.error}</span>}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

@@ -115,37 +115,31 @@ body {
 }
 .tk-me-inner.is-idle { animation: engine-idle .16s linear infinite; }
 
-/* Moving: dust kicked up behind the wheels. The icon points "up" in its own
-   frame, so behind is downward and the whole thing rotates with the marker.
-   Warm and light rather than brand green — a green plume vanished against
-   green terrain on satellite imagery. */
-.tk-dust { position: absolute; left: 50%; top: 58%; width: 0; height: 0; pointer-events: none; }
-.tk-dust i {
+/* Moving: speed streaks behind the vehicle. The icon points "up" in its own
+   frame, so behind is downward and the streaks rotate with the marker.
+   Light tapered trails, not particles — smoke behind a vehicle reads as
+   exhaust rather than as speed. */
+.tk-speed { position: absolute; left: 50%; top: 56%; width: 0; height: 0; pointer-events: none; }
+.tk-speed i {
   position: absolute; left: 0; top: 0;
-  width: 16px; height: 16px; border-radius: 50%;
+  width: 2.5px; height: 15px; border-radius: 2px;
   translate: -50% 0;
-  background: radial-gradient(circle at 40% 35%,
-              rgba(255,252,246,1), rgba(224,206,176,.78) 42%, rgba(150,132,104,0) 72%);
-  filter: blur(1.2px);
-  animation: dust 950ms ease-out infinite;
+  background: linear-gradient(to bottom, rgba(255,255,255,.95), rgba(61,220,151,.55) 45%, rgba(61,220,151,0));
+  animation: streak 640ms linear infinite;
+  animation-delay: var(--d, 0ms);
 }
-.tk-dust i:nth-child(2) { animation-delay: .22s }
-.tk-dust i:nth-child(3) { animation-delay: .45s }
-.tk-dust i:nth-child(4) { animation-delay: .67s }
-.tk-dust i:nth-child(5) { animation-delay: .12s }
-/* A bike throws a tighter, lighter trail than a car. */
-.tk-dust.is-bike i { width: 11px; height: 11px; filter: blur(1px) }
+.tk-speed.is-bike i { width: 2px; height: 12px; }
 
-@keyframes dust {
-  0%   { opacity: 0;   transform: translate(0, 0) scale(.35) }
-  15%  { opacity: 1 }
-  100% { opacity: 0;   transform: translate(var(--dx, 0), 36px) scale(2.3) }
+@keyframes streak {
+  0%   { opacity: 0;   transform: translate(var(--dx, 0), 0) scaleY(.45) }
+  18%  { opacity: .95 }
+  100% { opacity: 0;   transform: translate(var(--dx, 0), 32px) scaleY(1.7) }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .tk-me-inner.is-idle,
-  .tk-dust i { animation: none; }
-  .tk-dust { display: none; }
+  .tk-speed i { animation: none; }
+  .tk-speed { display: none; }
 }
 
 /* Other travellers on the same trip. */

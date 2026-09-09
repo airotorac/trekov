@@ -40,10 +40,19 @@ const TYPES = [
   { id: 'terrain',   label: 'Terrain' },
 ]
 
+/**
+ * A Map ID switches Google to vector rendering, where tilt and heading work
+ * everywhere. Without one we get raster tiles, whose 45-degree imagery only
+ * exists for some cities — so `supports3D` reports what this map can do
+ * rather than promising a tilt that silently no-ops.
+ */
+const MAP_ID = import.meta.env.VITE_GOOGLE_MAPS_MAP_ID
+
 export function createGoogleMap(gm, el, { center, zoom, mapType = 'hybrid', zoomControl = false }) {
   const map = new gm.Map(el, {
     center: { lat: center[0], lng: center[1] },
     zoom,
+    ...(MAP_ID ? { mapId: MAP_ID } : {}),
     mapTypeId: mapType,
     disableDefaultUI: true,
     zoomControl,
@@ -107,6 +116,11 @@ export function createGoogleMap(gm, el, { center, zoom, mapType = 'hybrid', zoom
         bounds: () => pl.getPath().getArray().map((p) => [p.lat(), p.lng()]),
       }
     },
+    supports3D: () => Boolean(MAP_ID) || ['satellite', 'hybrid'].includes(map.getMapTypeId()),
+    isVector: () => Boolean(MAP_ID),
+    setTilt: (deg) => { try { map.setTilt(deg) } catch {} },
+    setHeading: (deg) => { try { map.setHeading(deg) } catch {} },
+    getTilt: () => map.getTilt?.() ?? 0,
     setTraffic: (on) => {
       if (on && !traffic) traffic = new gm.TrafficLayer()
       traffic?.setMap(on ? map : null)

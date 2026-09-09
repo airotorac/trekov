@@ -53,7 +53,12 @@ export function createLeafletMap(el, { center, zoom, labels = true, zoomControl 
       if (back) pl.bringToBack()
       return { remove: () => pl.remove(), setLatLngs: (p) => pl.setLatLngs(p), bounds: () => pl.getLatLngs().map((p) => [p.lat, p.lng]) }
     },
-    // Google-only features are no-ops here.
+    // Google-only features are no-ops here; Leaflet has no tilt or rotation.
+    supports3D: () => false,
+    isVector: () => false,
+    setTilt: () => {},
+    setHeading: () => {},
+    getTilt: () => 0,
     setTraffic: () => false,
     setMapType: () => {},
     mapTypes: () => [],
