@@ -10,6 +10,11 @@ import Portal from './Portal'
 
 const TILE = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
 
+/** Street level. Esri imagery tops out at 18; 17 keeps a block of context. */
+const NAV_ZOOM = 17
+/** How far ahead of the vehicle to centre, as a fraction of the map height. */
+const LOOK_AHEAD = 0.2
+
 /** Nearest point on the route to the user, used for "distance remaining". */
 function remainingAlong(coords, here) {
   if (!coords?.length) return null
@@ -48,6 +53,10 @@ export default function Navigate({ place, trip, me, onClose }) {
   const [moving, setMoving] = useState(false)
   const trail = useRef([])          // recent fixes, newest last
   const trailLayer = useRef(null)
+  const routeLine = useRef(null)
+  // Snap to NAV_ZOOM on the first fix and whenever the user recentres; in
+  // between, respect whatever zoom they pinched to.
+  const resetZoom = useRef(true)
   // Heading comes from consecutive fixes; before there are two, point at the
   // destination so the marker is never arbitrarily oriented.
   const [heading, setHeading] = useState(null)
@@ -124,8 +133,11 @@ export default function Navigate({ place, trip, me, onClose }) {
     const line = L.polyline(route.coordinates, { color: '#00C08B', weight: 5, opacity: .9 }).addTo(map.current)
     const casing = L.polyline(route.coordinates, { color: '#0B0F0E', weight: 9, opacity: .5 }).addTo(map.current)
     casing.bringToBack()
-    map.current.fitBounds(line.getBounds(), { padding: [40, 40] })
-    return () => { line.remove(); casing.remove() }
+    routeLine.current = line
+    // Deliberately no fitBounds: a 600km route would zoom the map out to the
+    // whole country, and on a laptop the next GPS fix that would zoom it
+    // back in may never come. The overview is a button instead.
+    return () => { line.remove(); casing.remove(); routeLine.current = null }
   }, [route])
 
   // A comet trail of recent fixes: each segment is its own polyline because
@@ -165,8 +177,32 @@ export default function Navigate({ place, trip, me, onClose }) {
       meMarker.current.setLatLng([pos.lat, pos.lng])
       meMarker.current.setIcon(icon)
     }
-    if (follow) map.current.setView([pos.lat, pos.lng], Math.max(map.current.getZoom(), 13), { animate: true })
+    if (follow) {
+      const m = map.current
+      const z = resetZoom.current ? NAV_ZOOM : m.getZoom()
+      resetZoom.current = false
+      // Centre a little ahead of the vehicle so it sits in the lower part of
+      // the map and the road you are about to drive fills the rest.
+      const rad = (rotate * Math.PI) / 180
+      const d = m.getSize().y * LOOK_AHEAD
+      const ahead = L.point(Math.sin(rad) * d, -Math.cos(rad) * d)
+      const centre = m.unproject(m.project([pos.lat, pos.lng], z).add(ahead), z)
+      m.setView(centre, z, { animate: true, duration: .5 })
+    }
   }, [pos, follow, heading, vehicle, bearingToDest, moving])
+
+  function recentre() {
+    resetZoom.current = true
+    setFollow(true)
+  }
+
+  function overview() {
+    if (!map.current) return
+    setFollow(false)
+    const bounds = routeLine.current?.getBounds()
+    if (bounds) map.current.fitBounds(bounds, { padding: [48, 48] })
+    else if (pos) map.current.fitBounds(L.latLngBounds([pos.lat, pos.lng], [dest.lat, dest.lng]), { padding: [48, 48] })
+  }
 
   /* ----------------------------------------------------------------- route */
   useEffect(() => {
@@ -275,12 +311,18 @@ export default function Navigate({ place, trip, me, onClose }) {
             )}
           </div>
 
-          {!follow && pos && (
-            <button onClick={() => setFollow(true)}
-                    className="absolute right-3 bottom-3 z-[500] rounded-full bg-brand text-ink text-xs font-semibold px-3 py-2">
-              Recentre
+          <div className="absolute right-3 bottom-3 z-[500] flex gap-2">
+            <button onClick={overview}
+                    className="rounded-full bg-ink/90 backdrop-blur-xl border border-line text-xs font-semibold px-3 py-2 hover:border-brand">
+              Overview
             </button>
-          )}
+            {!follow && pos && (
+              <button onClick={recentre}
+                      className="rounded-full bg-brand text-ink text-xs font-semibold px-3 py-2">
+                Recentre
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="shrink-0 border-t border-line p-4 space-y-3 max-h-[46vh] overflow-y-auto
