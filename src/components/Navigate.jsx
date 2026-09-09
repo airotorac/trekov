@@ -32,6 +32,7 @@ export default function Navigate({ place, trip, me, onClose }) {
   // Snap to NAV_ZOOM on the first fix and whenever the user recentres; in
   // between, respect whatever zoom they pinched to.
   const resetZoom = useRef(true)
+  const idleTimer = useRef(null)
 
   const [engine, setEngine] = useState(null)   // 'google' | 'leaflet' once ready
   const [pos, setPos] = useState(null)
@@ -111,11 +112,21 @@ export default function Navigate({ place, trip, me, onClose }) {
       const metres = distance(prev, pos)
       if (metres > 5) setHeading(bearing(prev, pos))       // below ~5m it is jitter
       const secs = Math.max((pos.t - prev.t) / 1000, 0.001)
-      setMoving((pos.gpsSpeed ?? metres / secs) > 0.7)     // ~2.5 km/h
+      const isMoving = (pos.gpsSpeed ?? metres / secs) > 0.7   // ~2.5 km/h
+      setMoving(isMoving)
+
+      // Standing still, a receiver stops emitting new fixes (or repeats the
+      // same one), so this effect stops running and `moving` would stay true
+      // forever — the vehicle kept throwing speed streaks at a red light.
+      // Fall back to idle unless movement keeps arriving.
+      clearTimeout(idleTimer.current)
+      if (isMoving) idleTimer.current = setTimeout(() => setMoving(false), 3000)
     }
     lastPos.current = pos
     trail.current = [...trail.current, pos].slice(-14)
   }, [pos])
+
+  useEffect(() => () => clearTimeout(idleTimer.current), [])
 
   useEffect(() => {
     const on = () => setOnline(true)
