@@ -116,7 +116,12 @@ export function createGoogleMap(gm, el, { center, zoom, mapType = 'hybrid', zoom
         bounds: () => pl.getPath().getArray().map((p) => [p.lat(), p.lng()]),
       }
     },
-    supports3D: () => Boolean(MAP_ID) || ['satellite', 'hybrid'].includes(map.getMapTypeId()),
+    // Tilt and heading only *render* on vector maps, which need a Map ID.
+    // Without one the API happily accepts setTilt(45) and getTilt() reads back
+    // 45, but the raster tiles stay flat except in the few cities with 45°
+    // aerial imagery — so gating on the map type showed a button that did
+    // nothing almost everywhere.
+    supports3D: () => Boolean(MAP_ID),
     isVector: () => Boolean(MAP_ID),
     setTilt: (deg) => { try { map.setTilt(deg) } catch {} },
     setHeading: (deg) => { try { map.setHeading(deg) } catch {} },
