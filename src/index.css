@@ -135,3 +135,11 @@ body {
   .tk-me-inner.is-idle,
   .tk-me-inner.is-moving::after { animation: none; }
 }
+
+/* Other travellers on the same trip. */
+.tk-party { position: relative; width: 18px; height: 18px; display: grid; place-items: center; }
+.tk-party i { display: block; width: 14px; height: 14px; border-radius: 50%; border: 2.5px solid #0B0F0E; box-shadow: 0 0 0 1.5px #fff, 0 3px 8px rgba(0,0,0,.6); }
+.tk-party b { position: absolute; bottom: 20px; left: 50%; translate: -50% 0; white-space: nowrap; font-size: 10px; font-weight: 600; text-shadow: 0 1px 4px rgba(0,0,0,.95); }
+
+/* Google's own chrome, kept out of the way of ours. */
+.gm-style .gmnoprint a, .gm-style .gm-style-cc { font-size: 9px !important; }

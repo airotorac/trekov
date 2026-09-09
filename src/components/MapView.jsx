@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import L from 'leaflet'
 import { selectPlaceSearch, selectPlaces, useStore } from '../lib/store'
+import { createMap, preferredMapType, rememberMapType } from '../lib/mapDrivers'
 import { SearchIcon, Wordmark } from './Icons'
 
 const INDIA = [22.6, 79.0]
@@ -12,7 +12,7 @@ const INDIA = [22.6, 79.0]
  */
 function cluster(places, zoom) {
   if (zoom >= 8) return places.map((p) => ({ key: p.id, lat: p.lat, lng: p.lng, places: [p] }))
-  const cell = 40 / 2 ** zoom // degrees; halves every zoom level
+  const cell = 40 / 2 ** zoom
   const buckets = new Map()
   for (const p of places) {
     const key = `${Math.floor(p.lat / cell)}:${Math.floor(p.lng / cell)}`
@@ -27,85 +27,76 @@ function cluster(places, zoom) {
   }))
 }
 
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
+
 function markerHtml(node) {
   const { places } = node
   if (places.length === 1) {
     const p = places[0]
     const thumb = p.cover && !p.cover.blobKey ? p.cover.src : ''
-    return `
-      <div class="tk-pin ${p.saved ? 'is-saved' : ''}">
-        <div class="tk-pin-img" ${thumb ? `style="background-image:url('${thumb}')"` : ''}></div>
-        <span class="tk-pin-count">${p.postCount}</span>
-        <span class="tk-pin-label">${p.name}</span>
-      </div>`
+    return `<div class="tk-pin ${p.saved ? 'is-saved' : ''}">
+              <div class="tk-pin-img" ${thumb ? `style="background-image:url('${thumb}')"` : ''}></div>
+              <span class="tk-pin-count">${p.postCount}</span>
+              <span class="tk-pin-label">${esc(p.name)}</span>
+            </div>`
   }
   const total = places.reduce((n, p) => n + p.postCount, 0)
-  return `
-    <div class="tk-cluster">
-      <b>${places.length}</b>
-      <span>${total} photo${total === 1 ? '' : 's'}</span>
-    </div>`
+  return `<div class="tk-cluster"><b>${places.length}</b><span>${total} photo${total === 1 ? '' : 's'}</span></div>`
 }
 
 export default function MapView({ onOpenPlace }) {
   const host = useRef(null)
-  const map = useRef(null)
-  const layer = useRef(null)
+  const drv = useRef(null)
+  const markers = useRef([])
+  const [engine, setEngine] = useState(null)
   const [zoom, setZoom] = useState(4)
   const [q, setQ] = useState('')
+  const [mapType, setMapType] = useState(preferredMapType)
+  const [traffic, setTraffic] = useState(false)
 
   const places = useStore(selectPlaces)
   const matches = useStore((s) => selectPlaceSearch(s, q))
 
-  // Create the map once.
   useEffect(() => {
-    const m = L.map(host.current, { zoomControl: false, attributionControl: true })
-      .setView(INDIA, 4)
-    // Esri's imagery + label services are keyless. Satellite suits a travel app:
-    // zooming in shows the actual terrain, not an abstract street grid.
-    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-      attribution: 'Imagery &copy; Esri, Maxar, Earthstar Geographics',
-      maxZoom: 18,
-    }).addTo(m)
-    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
-      maxZoom: 18, pane: 'shadowPane',
-    }).addTo(m)
-    L.control.zoom({ position: 'bottomright' }).addTo(m)
-    layer.current = L.layerGroup().addTo(m)
-    m.on('zoomend', () => setZoom(m.getZoom()))
-    map.current = m
-    // The map is created before the pane has its final size.
-    setTimeout(() => m.invalidateSize(), 0)
-    return () => { m.remove(); map.current = null }
+    let alive = true
+    let offZoom = () => {}
+    createMap(host.current, { center: INDIA, zoom: 4, zoomControl: true, mapType }).then((d) => {
+      if (!alive) { d.destroy(); return }
+      drv.current = d
+      offZoom = d.onZoomEnd(setZoom)
+      setEngine(d.kind)
+    })
+    return () => { alive = false; offZoom(); drv.current?.destroy(); drv.current = null; markers.current = []; setEngine(null) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  useEffect(() => { rememberMapType(mapType); drv.current?.setMapType(mapType) }, [mapType, engine])
+  useEffect(() => { drv.current?.setTraffic(traffic) }, [traffic, engine])
 
   // Redraw markers whenever the data or the zoom level changes.
   useEffect(() => {
-    if (!layer.current) return
-    layer.current.clearLayers()
-    for (const node of cluster(places, zoom)) {
+    const d = drv.current
+    if (!d) return
+    markers.current.forEach((m) => m.remove())
+    markers.current = cluster(places, zoom).map((node) => {
       const single = node.places.length === 1
-      const marker = L.marker([node.lat, node.lng], {
-        icon: L.divIcon({
-          className: 'tk-marker',
-          html: markerHtml(node),
-          iconSize: single ? [54, 68] : [52, 52],
-          iconAnchor: single ? [27, 62] : [26, 26],
-        }),
+      return d.htmlMarker([node.lat, node.lng], markerHtml(node), {
+        size: single ? [54, 68] : [52, 52],
+        anchor: single ? [27, 62] : [26, 26],
+        onClick: () => single
+          ? onOpenPlace(node.places[0].id)
+          : d.flyTo([node.lat, node.lng], Math.min(zoom + 3, 9)),
       })
-      marker.on('click', () => {
-        if (single) onOpenPlace(node.places[0].id)
-        else map.current.flyTo([node.lat, node.lng], Math.min(zoom + 3, 9), { duration: .6 })
-      })
-      layer.current.addLayer(marker)
-    }
-  }, [places, zoom, onOpenPlace])
+    })
+  }, [places, zoom, onOpenPlace, engine])
 
   function goTo(place) {
     setQ('')
-    map.current?.flyTo([place.lat, place.lng], 9, { duration: .8 })
+    drv.current?.flyTo([place.lat, place.lng], 9)
     onOpenPlace(place.id)
   }
+
+  const types = drv.current?.mapTypes() ?? []
 
   return (
     <div className="relative h-full">
@@ -115,19 +106,15 @@ export default function MapView({ onOpenPlace }) {
       <div className="absolute inset-x-0 top-0 z-[500] p-3">
         {/* The dark lockup rides over the map on a scrim, so the map screen
             carries the brand without spending a whole header on it. */}
-        <div className="flex items-center justify-between pb-2.5 pt-0.5 px-1
-                        [text-shadow:0_1px_6px_rgba(0,0,0,.9)]">
+        <div className="flex items-center justify-between pb-2.5 pt-0.5 px-1 [text-shadow:0_1px_6px_rgba(0,0,0,.9)]">
           <Wordmark size={19} />
           <span className="text-[11px] text-mist">The map is the feed</span>
         </div>
 
         <div className="flex items-center gap-2 bg-ink/90 backdrop-blur-xl border border-line rounded-full px-4 py-2.5 shadow-lg">
           <SearchIcon size={18} className="text-mist shrink-0" />
-          <input
-            value={q} onChange={(e) => setQ(e.target.value)}
-            placeholder="Search a place or region…"
-            className="bg-transparent flex-1 text-sm outline-none placeholder:text-mist min-w-0"
-          />
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search a place or region…"
+                 className="bg-transparent flex-1 text-sm outline-none placeholder:text-mist min-w-0" />
           {q && <button onClick={() => setQ('')} className="text-xs text-mist shrink-0">Clear</button>}
         </div>
 
@@ -146,6 +133,24 @@ export default function MapView({ onOpenPlace }) {
               </li>
             ))}
           </ul>
+        )}
+
+        {/* Map style and live traffic — Google only; Leaflet has neither. */}
+        {!q && engine === 'google' && (
+          <div className="mt-2 flex gap-1.5 overflow-x-auto no-bar">
+            {types.map((t) => (
+              <button key={t.id} onClick={() => setMapType(t.id)} aria-pressed={mapType === t.id}
+                      className={`shrink-0 rounded-full px-3 py-1.5 text-xs border backdrop-blur-xl transition
+                                  ${mapType === t.id ? 'bg-brand text-ink border-brand font-semibold' : 'bg-ink/80 border-line text-mist hover:text-white'}`}>
+                {t.label}
+              </button>
+            ))}
+            <button onClick={() => setTraffic((v) => !v)} aria-pressed={traffic}
+                    className={`shrink-0 ml-auto rounded-full px-3 py-1.5 text-xs border backdrop-blur-xl transition
+                                ${traffic ? 'bg-brand text-ink border-brand font-semibold' : 'bg-ink/80 border-line text-mist hover:text-white'}`}>
+              Traffic
+            </button>
+          </div>
         )}
       </div>
 

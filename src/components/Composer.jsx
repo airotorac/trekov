@@ -158,7 +158,7 @@ export default function Composer({ onClose, onPosted }) {
                   <input className={field} placeholder="Best time (Nov–Feb)" value={fresh.bestTime}
                          onChange={(e) => setFresh({ ...fresh, bestTime: e.target.value })} />
                 </div>
-                <p className="text-xs text-mist">Tap or drag the pin to set where it is.</p>
+                <p className="text-xs text-mist">Tap the map to place the pin where it is.</p>
                 <PinMap lat={fresh.lat} lng={fresh.lng}
                         onMove={(lat, lng) => setFresh((f) => ({ ...f, lat, lng }))} />
                 <p className="text-xs text-mist tabular-nums">{fresh.lat}, {fresh.lng}</p>

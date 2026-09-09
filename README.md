@@ -89,7 +89,9 @@ src/
   lib/route.js    OSRM routing with an offline cache
   lib/offline.js  satellite tile download into Cache Storage
   lib/party.js    live location sharing, pluggable transport
-  lib/vehicleArt.js  car/bike SVG artwork as strings (no JSX, so Leaflet can use it)
+  lib/vehicleArt.js  car/bike SVG artwork as strings, eight colour presets
+  lib/gmaps.js    Google Maps script loader
+  lib/mapDrivers/ one interface, two engines: google.js, leaflet.js
   lib/seed.js     demo places, posts and users
   components/     MapView, PlaceSheet, PhotoViewer, Trips, TripDetail,
                   SharedTrip, Saved, Profile, Composer, PinMap, TabBar,
@@ -112,10 +114,18 @@ Two implementation notes worth keeping:
 
 ## Navigation, offline and live sharing
 
-**Routing** goes through the public OSRM demo server. It is rate-limited and
-explicitly not for production traffic — point `HOST` in `src/lib/route.js` at
-your own OSRM/Valhalla instance before real users arrive. Every route is cached,
-so one that was fetched with signal still guides you without.
+**Routing** prefers Google Directions (car: `DRIVING` with live-traffic ETA;
+bike: `TWO_WHEELER`, falling back to a car route with an on-screen note where
+Google does not offer it) and drops to the public OSRM demo server when there
+is no Google key. OSRM's demo only carries the driving profile — it silently
+returns the same route for every mode — and is not for production traffic.
+Every route is cached, so one fetched with signal still guides you without.
+
+**Vehicle** — car or bike, in eight colours, chosen on the navigation screen
+and remembered. It is the rotating marker on the map. The artwork lives in
+`src/lib/vehicleArt.js` as SVG strings so both map engines can use it; preview
+every colour by copying `brand/render/vehicles.html` into `public/` while the
+dev server runs (delete it before deploying).
 
 **Offline** has two halves. `public/sw.js` caches the app shell so it opens with
 no connection, and serves map tiles cache-first. "Save map offline" downloads
@@ -130,12 +140,47 @@ on one machine — enough to build and test the whole UI. Swapping in Supabase
 Realtime is roughly fifteen lines; the shape is documented at the top of that
 file. Until then, two people on two phones will **not** see each other.
 
-## Maps
+## Maps: Google online, Leaflet offline
 
-Tiles come from Esri's keyless services — World Imagery for the satellite base,
-World Boundaries and Places for labels. Attribution is required and is rendered
-on the map. CARTO's dark basemap was tried first and watermarks "API KEY
-REQUIRED" without a key.
+Every map goes through `src/lib/mapDrivers/`, which exposes one small interface
+(`setView`, `htmlMarker`, `polyline`, `fitBounds`, `offsetLatLng`, …) with two
+implementations:
+
+- **Google Maps** (`google.js`) when `VITE_GOOGLE_MAPS_KEY` is set, the key is
+  accepted, and the device is online. Brings live traffic, the roadmap /
+  satellite / hybrid / terrain views, and Google Directions — including
+  `TWO_WHEELER` routing for bikes where Google offers it (India does).
+- **Leaflet + Esri imagery** (`leaflet.js`) otherwise. This is also the only
+  engine that can run offline: Google's script cannot load without a network,
+  and its terms forbid caching tiles, so "Save map offline" always downloads
+  Esri tiles for this engine regardless of which one is on screen.
+
+The choice is made per map in `createMap()`; screens never branch on engine
+except to hide Google-only controls.
+
+### Setting up Google Maps
+
+1. In Google Cloud, enable **Maps JavaScript API** and **Directions API** on a
+   project with billing attached (Google requires it even inside the free tier).
+2. Create an API key. Restrict it — **Application restrictions → HTTP
+   referrers**: `https://trekov.com/*`, `https://www.trekov.com/*`,
+   `http://localhost:5173/*`; **API restrictions**: the two APIs above.
+   An unrestricted key in a public repo is somebody else's bill on your card.
+3. Put it in `.env.local` (gitignored):
+
+   ```
+   VITE_GOOGLE_MAPS_KEY=...
+   ```
+
+   Vite inlines it at build time, so it ships in the bundle — which is fine for
+   a referrer-restricted browser key, and why the restriction matters.
+
+Without a key the app runs entirely on Leaflet, which is what the Leaflet
+tests exercise.
+
+Esri's keyless services provide the offline imagery — World Imagery for the
+base, World Boundaries and Places for labels. Attribution is rendered on the
+map. CARTO's dark basemap was tried first and watermarks "API KEY REQUIRED".
 
 ## Before this is real
 

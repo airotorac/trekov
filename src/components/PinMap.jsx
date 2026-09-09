@@ -1,33 +1,26 @@
 import { useEffect, useRef } from 'react'
-import L from 'leaflet'
+import { createMap } from '../lib/mapDrivers'
 
-/** A small map you drop a single pin on, for giving a new place its coordinates. */
+const PIN_HTML = '<div class="tk-pin"><div class="tk-pin-img"></div></div>'
+
+/** A small map you tap to place a single pin, for giving a new place its coordinates. */
 export default function PinMap({ lat, lng, onMove }) {
   const host = useRef(null)
-  const marker = useRef(null)
 
   useEffect(() => {
-    const m = L.map(host.current, { zoomControl: true, attributionControl: false }).setView([lat, lng], 5)
-    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-      attribution: 'Imagery &copy; Esri', maxZoom: 18,
-    }).addTo(m)
-
-    marker.current = L.marker([lat, lng], {
-      draggable: true,
-      icon: L.divIcon({ className: 'tk-marker', html: '<div class="tk-pin"><div class="tk-pin-img"></div></div>', iconSize: [54, 60], iconAnchor: [27, 56] }),
-    }).addTo(m)
-
-    marker.current.on('dragend', () => {
-      const { lat: a, lng: b } = marker.current.getLatLng()
-      onMove(+a.toFixed(5), +b.toFixed(5))
+    let alive = true
+    let off = () => {}
+    let drv = null
+    createMap(host.current, { center: [lat, lng], zoom: 5, zoomControl: true, mapType: 'hybrid' }).then((d) => {
+      if (!alive) { d.destroy(); return }
+      drv = d
+      const pin = d.htmlMarker([lat, lng], PIN_HTML, { size: [54, 60], anchor: [27, 56] })
+      off = d.onClick(([a, b]) => {
+        pin.setLatLng([a, b])
+        onMove(+a.toFixed(5), +b.toFixed(5))
+      })
     })
-    m.on('click', (e) => {
-      marker.current.setLatLng(e.latlng)
-      onMove(+e.latlng.lat.toFixed(5), +e.latlng.lng.toFixed(5))
-    })
-
-    setTimeout(() => m.invalidateSize(), 0)
-    return () => m.remove()
+    return () => { alive = false; off(); drv?.destroy() }
     // Created once; later lat/lng changes come from this map itself.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
