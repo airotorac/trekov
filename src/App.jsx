@@ -77,7 +77,7 @@ export default function App() {
   const screens = {
     map: <MapView onOpenPlace={setPlace} />,
     trips: <Trips onOpenPlace={setPlace} open={openTrip} onOpen={setOpenTrip} onNavigate={startNavigation} />,
-    saved: <Saved onExplore={() => go('map')} onOpenPlace={setPlace} />,
+    saved: <Saved onExplore={() => go('map')} onOpenPlace={setPlace} onNavigate={startNavigation} />,
     profile: <Profile onPost={() => setComposing(true)} />,
   }
 

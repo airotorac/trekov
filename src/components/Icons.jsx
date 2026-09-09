@@ -83,3 +83,6 @@ export const CompassIcon = (p) => (
 export const RouteIcon = (p) => (
   <Icon {...p}><circle cx="6.5" cy="6.5" r="2.5" /><circle cx="17.5" cy="17.5" r="2.5" /><path d="M9 6.5h5A3.5 3.5 0 0 1 14 13.5h-4a3.5 3.5 0 0 0 0 7h5" /></Icon>
 )
+export const NavIcon = (p) => (
+  <Icon {...p}><path d="M3.6 11.3 20.4 4.2 13.3 21l-2.2-7.5Z" /></Icon>
+)

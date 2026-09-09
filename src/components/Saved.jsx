@@ -1,10 +1,9 @@
 import { selectSavedPlaces, toggleSavePlace, useStore } from '../lib/store'
-import { mapsUrl } from '../lib/format'
-import { CalendarIcon, CloseIcon, Logo } from './Icons'
+import { CalendarIcon, CloseIcon, Logo, NavIcon } from './Icons'
 import Media from './Media'
 
 /** The to-visit list — places, not posts. */
-export default function Saved({ onExplore, onOpenPlace }) {
+export default function Saved({ onExplore, onOpenPlace, onNavigate }) {
   const saved = useStore(selectSavedPlaces)
 
   const byCountry = saved.reduce((acc, p) => {
@@ -56,12 +55,16 @@ export default function Saved({ onExplore, onOpenPlace }) {
                       )}
                       <p className="text-[11px] text-mist mt-1.5">{p.postCount} photo{p.postCount === 1 ? '' : 's'}</p>
                     </button>
-                    <div className="flex flex-col items-end justify-between shrink-0">
+                    <div className="flex flex-col items-end justify-between shrink-0 gap-2">
                       <button onClick={() => toggleSavePlace(p.id)} className="text-mist hover:text-rose p-1"
                               aria-label={`Remove ${p.name}`}>
                         <CloseIcon size={17} />
                       </button>
-                      <a href={mapsUrl(p)} target="_blank" rel="noreferrer" className="text-xs text-brand font-medium">Map</a>
+                      <button onClick={() => onNavigate?.(p.id)}
+                              className="flex items-center gap-1.5 rounded-full bg-brand text-ink text-xs font-semibold px-3 py-1.5"
+                              aria-label={`Navigate to ${p.name}`}>
+                        <NavIcon size={13} filled /> Go
+                      </button>
                     </div>
                   </li>
                 ))}

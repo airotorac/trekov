@@ -3,7 +3,7 @@ import {
   selectPlace, selectPostsAt, selectTrips, addStop, createTrip, toggleSavePlace, useStore,
 } from '../lib/store'
 import { compact, mapsUrl, timeAgo } from '../lib/format'
-import { CalendarIcon, CloseIcon, PlusIcon, SaveIcon } from './Icons'
+import { CalendarIcon, CloseIcon, NavIcon, PlusIcon, SaveIcon } from './Icons'
 import Media from './Media'
 import Portal from './Portal'
 import PhotoViewer from './PhotoViewer'
@@ -64,20 +64,25 @@ export default function PlaceSheet({ placeId, onClose, onNavigate }) {
                 </span>
               )}
               <span className="text-mist">{place.postCount} photo{place.postCount === 1 ? '' : 's'}</span>
-              <button onClick={() => onNavigate?.(place.id)} className="text-brand font-medium ml-auto">
-                Navigate
-              </button>
-              <a href={mapsUrl(place)} target="_blank" rel="noreferrer" className="text-mist">
-                Maps
+              <a href={mapsUrl(place)} target="_blank" rel="noreferrer" className="text-mist ml-auto">
+                Open in Google Maps
               </a>
             </div>
 
-            <div className="mt-3 flex gap-2">
+            {/* Navigating is the point of opening a place, so it gets the
+                primary button rather than a link buried in the meta row. */}
+            <button onClick={() => onNavigate?.(place.id)}
+                    className="mt-3 w-full flex items-center justify-center gap-2 rounded-full bg-brand text-ink
+                               py-3 text-sm font-semibold active:scale-[.99] transition">
+              <NavIcon size={18} filled /> Navigate here
+            </button>
+
+            <div className="mt-2 flex gap-2">
               <button
                 onClick={() => flash(toggleSavePlace(place.id) ? 'Saved to To Visit' : 'Removed from To Visit')}
                 aria-pressed={place.saved}
                 className={`flex-1 flex items-center justify-center gap-2 rounded-full py-2.5 text-sm font-semibold border transition
-                            ${place.saved ? 'bg-brand text-ink border-brand' : 'border-line hover:border-brand hover:text-brand'}`}>
+                            ${place.saved ? 'bg-brand/15 text-brand border-brand' : 'border-line hover:border-brand hover:text-brand'}`}>
                 <SaveIcon size={18} filled={place.saved} />
                 {place.saved ? 'Saved' : 'Save place'}
               </button>
