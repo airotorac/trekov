@@ -92,6 +92,46 @@ body {
 .tk-cluster b { font-size: 16px; color: #EEF3F1; }
 .tk-cluster span { font-size: 8px; color: #8FA39C; margin-top: 2px; }
 
-/* The navigating-user marker: the chosen vehicle, rotated to travel direction. */
-.tk-me { width: 44px; height: 44px; display: grid; place-items: center; transition: transform .3s ease-out; }
-.tk-me svg { filter: drop-shadow(0 3px 6px rgba(0,0,0,.65)); }
+/* The navigating-user marker: the chosen vehicle, rotated to travel direction.
+   Rotation lives on the outer node and motion on the inner one, so the two
+   transforms compose instead of overwriting each other. */
+.tk-me {
+  width: 44px; height: 44px; display: grid; place-items: center;
+  transform: rotate(var(--rot, 0deg));
+  transition: transform .35s ease-out;
+}
+.tk-me-inner { display: grid; place-items: center; position: relative; }
+.tk-me-inner svg { filter: drop-shadow(0 3px 6px rgba(0,0,0,.65)); position: relative; z-index: 1; }
+
+/* Idling: a fast, tiny jitter — an engine running, not a vehicle travelling.
+   Amplitude stays under half a pixel so it reads as vibration, not drift. */
+@keyframes engine-idle {
+  0%   { transform: translate(0, 0) }
+  20%  { transform: translate(.45px, -.35px) }
+  40%  { transform: translate(-.35px, .3px) }
+  60%  { transform: translate(.3px, .4px) }
+  80%  { transform: translate(-.4px, -.25px) }
+  100% { transform: translate(0, 0) }
+}
+.tk-me-inner.is-idle { animation: engine-idle .16s linear infinite; }
+
+/* Moving: exhaust/speed wash directly behind the vehicle. The icon points
+   "up" in its own frame, so behind is downward and rotates with the marker. */
+.tk-me-inner.is-moving::after {
+  content: "";
+  position: absolute; left: 50%; top: 62%;
+  width: 15px; height: 30px; translate: -50% 0;
+  background: linear-gradient(to bottom, rgba(61,220,151,.5), rgba(61,220,151,0) 75%);
+  filter: blur(2.5px);
+  border-radius: 50% 50% 40% 40%;
+  animation: thrust .45s ease-in-out infinite;
+}
+@keyframes thrust {
+  0%, 100% { opacity: .5; scale: 1 .9 }
+  50%      { opacity: .9; scale: 1.1 1.15 }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tk-me-inner.is-idle,
+  .tk-me-inner.is-moving::after { animation: none; }
+}

@@ -45,6 +45,9 @@ export default function Navigate({ place, trip, me, onClose }) {
   const [saving, setSaving] = useState(null)
   const [follow, setFollow] = useState(true)
   const [vehicle, setVehicle] = useState(() => localStorage.getItem('trekov.vehicle') || 'car')
+  const [moving, setMoving] = useState(false)
+  const trail = useRef([])          // recent fixes, newest last
+  const trailLayer = useRef(null)
   // Heading comes from consecutive fixes; before there are two, point at the
   // destination so the marker is never arbitrarily oriented.
   const [heading, setHeading] = useState(null)
@@ -57,7 +60,15 @@ export default function Navigate({ place, trip, me, onClose }) {
   useEffect(() => {
     if (!navigator.geolocation) return setGpsError('This device has no location support.')
     const id = navigator.geolocation.watchPosition(
-      (p) => { setGpsError(''); setPos({ lat: p.coords.latitude, lng: p.coords.longitude, acc: p.coords.accuracy }) },
+      (p) => {
+        setGpsError('')
+        setPos({
+          lat: p.coords.latitude, lng: p.coords.longitude, acc: p.coords.accuracy,
+          // GPS gives speed directly when it can; otherwise it is derived below.
+          gpsSpeed: Number.isFinite(p.coords.speed) ? p.coords.speed : null,
+          t: Date.now(),
+        })
+      },
       (e) => setGpsError(e.code === 1
         ? 'Location permission denied. Allow it to navigate.'
         : 'Waiting for a GPS fix…'),
@@ -71,9 +82,17 @@ export default function Navigate({ place, trip, me, onClose }) {
   useEffect(() => {
     if (!pos) return
     const prev = lastPos.current
-    // Ignore jitter: below ~5m the computed bearing is noise.
-    if (prev && distance(prev, pos) > 5) setHeading(bearing(prev, pos))
+    if (prev) {
+      const metres = distance(prev, pos)
+      // Ignore jitter: below ~5m the computed bearing is noise.
+      if (metres > 5) setHeading(bearing(prev, pos))
+      const secs = Math.max((pos.t - prev.t) / 1000, 0.001)
+      const speed = pos.gpsSpeed ?? metres / secs
+      setMoving(speed > 0.7)        // ~2.5 km/h, i.e. faster than standing still
+    }
     lastPos.current = pos
+
+    trail.current = [...trail.current, pos].slice(-14)
   }, [pos])
 
   useEffect(() => {
@@ -91,6 +110,7 @@ export default function Navigate({ place, trip, me, onClose }) {
     L.marker([dest.lat, dest.lng], {
       icon: L.divIcon({ className: 'tk-marker', html: '<div class="tk-pin"><div class="tk-pin-img"></div></div>', iconSize: [54, 60], iconAnchor: [27, 56] }),
     }).addTo(m)
+    trailLayer.current = L.layerGroup().addTo(m)
     partyLayer.current = L.layerGroup().addTo(m)
     m.on('dragstart', () => setFollow(false))
     map.current = m
@@ -108,13 +128,34 @@ export default function Navigate({ place, trip, me, onClose }) {
     return () => { line.remove(); casing.remove() }
   }, [route])
 
+  // A comet trail of recent fixes: each segment is its own polyline because
+  // Leaflet cannot gradient a single one.
+  useEffect(() => {
+    if (!trailLayer.current) return
+    trailLayer.current.clearLayers()
+    const pts = trail.current
+    if (!moving || pts.length < 2) return
+    for (let i = 1; i < pts.length; i++) {
+      const k = i / (pts.length - 1)          // 0 oldest -> 1 newest
+      L.polyline([[pts[i - 1].lat, pts[i - 1].lng], [pts[i].lat, pts[i].lng]], {
+        color: '#3DDC97',
+        opacity: 0.08 + k * 0.55,
+        weight: 2 + k * 4,
+        lineCap: 'round',
+        interactive: false,
+      }).addTo(trailLayer.current)
+    }
+  }, [pos, moving])
+
   // Our own marker is the chosen vehicle, rotated to the way we are moving.
   useEffect(() => {
     if (!map.current || !pos) return
     const rotate = heading ?? bearingToDest ?? 0
     const icon = L.divIcon({
       className: 'tk-marker',
-      html: `<div class="tk-me" style="transform:rotate(${rotate}deg)">${VEHICLE_SVG[vehicle]}</div>`,
+      html: `<div class="tk-me" style="--rot:${rotate}deg">
+               <div class="tk-me-inner ${moving ? 'is-moving' : 'is-idle'}">${VEHICLE_SVG[vehicle]}</div>
+             </div>`,
       iconSize: [44, 44],
       iconAnchor: [22, 22],
     })
@@ -125,7 +166,7 @@ export default function Navigate({ place, trip, me, onClose }) {
       meMarker.current.setIcon(icon)
     }
     if (follow) map.current.setView([pos.lat, pos.lng], Math.max(map.current.getZoom(), 13), { animate: true })
-  }, [pos, follow, heading, vehicle, bearingToDest])
+  }, [pos, follow, heading, vehicle, bearingToDest, moving])
 
   /* ----------------------------------------------------------------- route */
   useEffect(() => {
