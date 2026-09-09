@@ -42,14 +42,20 @@ export default function App() {
 
   // One identity per tab, so two tabs act as two travellers sharing a trip.
   // With a real backend this becomes the signed-in user's id.
+  const account = useStore((s) => s.account)
+
   const me = useMemo(() => {
     let id = sessionStorage.getItem('trekov.memberId')
     if (!id) {
       id = `m_${Math.random().toString(36).slice(2, 9)}`
       sessionStorage.setItem('trekov.memberId', id)
     }
-    return { id, name: profile.name }
-  }, [profile.name])
+    // Companions are labelled by handle, not by the profile name — that
+    // defaults to "You", so a whole group showed up on each other's maps as
+    // "You". Signed out, a short id keeps two anonymous riders apart.
+    const handle = account?.handle ?? profile.handle ?? 'traveller'
+    return { id, name: account ? handle : `${handle}·${id.slice(-3)}` }
+  }, [account, profile.handle])
 
   const startNavigation = (placeId, tripId) => { setPlace(null); setNav({ placeId, tripId }) }
 
