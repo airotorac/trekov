@@ -178,8 +178,16 @@ export default function Navigate({ place, trip, me, onClose }) {
     const d = drv.current
     if (!d || !pos) return
     const rotate = heading ?? bearingToDest ?? 0
+    // Dust is real elements rather than one pseudo-element: several puffs on
+    // staggered delays billow, where a single blurred blob just sat there.
+    const dust = moving
+      ? `<span class="tk-dust ${vehicle === 'bike' ? 'is-bike' : ''}">
+           <i style="--dx:-6px"></i><i style="--dx:5px"></i><i style="--dx:-2px"></i><i style="--dx:7px"></i><i style="--dx:1px"></i>
+         </span>`
+      : ''
     const html = `<div class="tk-me" style="--rot:${rotate}deg">
                     <div class="tk-me-inner ${moving ? 'is-moving' : 'is-idle'}">
+                      ${dust}
                       ${vehicleSvg(vehicle, { colour, size: 40, id: 'mk' })}
                     </div>
                   </div>`
