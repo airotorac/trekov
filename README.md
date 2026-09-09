@@ -163,3 +163,20 @@ the save and the trek in one shape.
 
 Brand green `#00C08B` (light `#3DDC97`, deep `#0E9F6E`), ink `#0B0F0E`,
 accent sun `#FFB33E`. Wordmark is Outfit 600, tracking `-0.035em`, lowercase.
+
+## Brand assets (rendered)
+
+`brand/render/` holds the HTML sources; the PNGs are rendered from them with
+headless Chrome so the Outfit wordmark rasterises with the real font:
+
+```bash
+CHROME="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+"$CHROME" --headless --window-size=1200,630 --virtual-time-budget=6000 \
+  --screenshot=brand/og.png "file://$PWD/brand/render/og.html"
+```
+
+- `brand/og.png` (1200×630) — social share card, copied to `public/og.png`
+- `brand/avatar-lockup.png` (512×512) — stacked lockup, for profile pictures
+- `brand/avatar-mark.png` (512×512) — mark only; use this wherever the avatar
+  renders below ~100px, where a wordmark turns to mush
+- `public/icon-192.png` / `icon-512.png` — PWA icons, from `brand/app-icon.svg`

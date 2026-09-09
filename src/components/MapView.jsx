@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import L from 'leaflet'
 import { selectPlaceSearch, selectPlaces, useStore } from '../lib/store'
-import { SearchIcon } from './Icons'
+import { SearchIcon, Wordmark } from './Icons'
 
 const INDIA = [22.6, 79.0]
 
@@ -110,8 +110,17 @@ export default function MapView({ onOpenPlace }) {
   return (
     <div className="relative h-full">
       <div ref={host} className="absolute inset-0 bg-raised" />
+      <div className="absolute inset-x-0 top-0 h-32 z-[400] pointer-events-none bg-gradient-to-b from-ink/80 to-transparent" />
 
       <div className="absolute inset-x-0 top-0 z-[500] p-3">
+        {/* The dark lockup rides over the map on a scrim, so the map screen
+            carries the brand without spending a whole header on it. */}
+        <div className="flex items-center justify-between pb-2.5 pt-0.5 px-1
+                        [text-shadow:0_1px_6px_rgba(0,0,0,.9)]">
+          <Wordmark size={19} />
+          <span className="text-[11px] text-mist">The map is the feed</span>
+        </div>
+
         <div className="flex items-center gap-2 bg-ink/90 backdrop-blur-xl border border-line rounded-full px-4 py-2.5 shadow-lg">
           <SearchIcon size={18} className="text-mist shrink-0" />
           <input

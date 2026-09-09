@@ -1,0 +1,14 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&display=swap');
+* { margin: 0; box-sizing: border-box; }
+body {
+  background: #0B0F0E; color: #EEF3F1;
+  font-family: Outfit, system-ui, sans-serif;
+  display: grid; place-items: center; overflow: hidden;
+}
+.glow {
+  position: fixed; inset: -40% -10% auto 50%; translate: -50% 0;
+  width: 120%; height: 130%;
+  background: radial-gradient(closest-side, rgba(0,192,139,.22), transparent 70%);
+}
+.lock { position: relative; display: flex; align-items: center; }
+.wm { font-weight: 600; letter-spacing: -.035em; }
