@@ -86,7 +86,16 @@ export function joinParty(tripId, me, onMembers, transport) {
       return
     }
     if (msg.type !== 'pos') return
-    members.set(msg.id, { id: msg.id, name: msg.name, lat: msg.lat, lng: msg.lng, at: Date.now() })
+    members.set(msg.id, {
+      id: msg.id, name: msg.name, lat: msg.lat, lng: msg.lng,
+      // Carry how they look and whether they are rolling, or every companion
+      // renders as a stationary green car regardless of what they sent.
+      vehicle: msg.vehicle ?? 'car',
+      colour: msg.colour ?? 'green',
+      heading: msg.heading ?? 0,
+      moving: Boolean(msg.moving),
+      at: Date.now(),
+    })
     publish()
     // A newcomer needs to learn where we are without waiting for the heartbeat.
     if (msg.hello && mine) transport.send({ ...mine, type: 'pos', hello: false })
@@ -100,6 +109,7 @@ export function joinParty(tripId, me, onMembers, transport) {
         type: 'pos', id: me.id, name: me.name,
         lat: position.lat, lng: position.lng,
         vehicle: look.vehicle, colour: look.colour, heading: look.heading,
+        moving: look.moving,
         hello: !mine,
       }
       transport.send(mine)

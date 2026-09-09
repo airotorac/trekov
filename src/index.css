@@ -144,11 +144,11 @@ body {
 
 /* Companions on a group trip: their vehicle, their colour, their name.
    The name stays upright while the vehicle rotates to their heading. */
-.tk-mate { position: relative; width: 38px; height: 38px; display: grid; place-items: center; }
-.tk-mate-car { display: block; transform: rotate(var(--rot, 0deg)); transition: transform .35s ease-out; }
-.tk-mate-car svg { filter: drop-shadow(0 2px 5px rgba(0,0,0,.7)); }
+.tk-mate { position: relative; width: 44px; height: 44px; display: grid; place-items: center; }
+.tk-mate .tk-me { width: 44px; height: 44px; }
+.tk-mate .tk-me-inner svg { filter: drop-shadow(0 2px 5px rgba(0,0,0,.7)); }
 .tk-mate-name {
-  position: absolute; bottom: 34px; left: 50%; translate: -50% 0;
+  position: absolute; bottom: 38px; left: 50%; translate: -50% 0; z-index: 2;
   white-space: nowrap; font-size: 10px; font-weight: 700; color: #EEF3F1;
   background: rgba(11,15,14,.8); border-radius: 999px; padding: 1px 6px;
   text-shadow: 0 1px 3px rgba(0,0,0,.9);

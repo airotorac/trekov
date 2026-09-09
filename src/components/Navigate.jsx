@@ -17,6 +17,13 @@ import Portal from './Portal'
 const NAV_ZOOM = 17
 /** Beyond this the GPS is genuinely off-route, not just noisy. */
 const SNAP_M = 60
+/** Speed streaks, shared by our own marker and every companion's. */
+const SPEED_STREAKS = (vehicle) =>
+  `<span class="tk-speed ${vehicle === 'bike' ? 'is-bike' : ''}">
+     <i style="--dx:-8px;--d:0ms"></i><i style="--dx:0px;--d:110ms"></i>
+     <i style="--dx:8px;--d:220ms"></i><i style="--dx:-4px;--d:330ms"></i><i style="--dx:4px;--d:440ms"></i>
+   </span>`
+
 const PIN_HTML = '<div class="tk-pin"><div class="tk-pin-img"></div></div>'
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
@@ -232,12 +239,7 @@ export default function Navigate({ place, trip, me, onClose }) {
     if (view3d) d.setHeading(course)
     // Speed streaks rather than a smoke plume: light trails read as motion,
     // where billowing particles just read as exhaust.
-    const dust = moving
-      ? `<span class="tk-speed ${vehicle === 'bike' ? 'is-bike' : ''}">
-           <i style="--dx:-8px;--d:0ms"></i><i style="--dx:0px;--d:110ms"></i>
-           <i style="--dx:8px;--d:220ms"></i><i style="--dx:-4px;--d:330ms"></i><i style="--dx:4px;--d:440ms"></i>
-         </span>`
-      : ''
+    const dust = moving ? SPEED_STREAKS(vehicle) : ''
     const html = `<div class="tk-me" style="--rot:${rotate}deg">
                     <div class="tk-me-inner ${moving ? 'is-moving' : 'is-idle'}">
                       ${dust}
@@ -293,20 +295,29 @@ export default function Navigate({ place, trip, me, onClose }) {
 
   // Companions see the vehicle you actually chose, pointing the way you drive.
   useEffect(() => {
-    if (shown && partyRef.current) partyRef.current.update(shown, { vehicle, colour, heading: course })
-  }, [shown, vehicle, colour, course])
+    if (shown && partyRef.current) {
+      partyRef.current.update(shown, { vehicle, colour, heading: course, moving })
+    }
+  }, [shown, vehicle, colour, course, moving])
 
   useEffect(() => {
     const d = drv.current
     if (!d) return
     partyMarkers.current.forEach((m) => m.remove())
+    // Companions reuse our own marker's markup, so they get the same speed
+    // streaks and engine idle rather than sitting frozen on the map.
     partyMarkers.current = members.map((m) => d.htmlMarker(
       [m.lat, m.lng],
-      `<div class="tk-mate" style="--rot:${m.heading ?? 0}deg">
+      `<div class="tk-mate">
          <span class="tk-mate-name">${esc(m.name)}</span>
-         <span class="tk-mate-car">${vehicleSvg(m.vehicle ?? 'car', { colour: m.colour ?? 'green', size: 34, id: `mate-${m.id}` })}</span>
+         <span class="tk-me" style="--rot:${m.heading ?? 0}deg">
+           <span class="tk-me-inner ${m.moving ? 'is-moving' : 'is-idle'}">
+             ${m.moving ? SPEED_STREAKS(m.vehicle) : ''}
+             ${vehicleSvg(m.vehicle ?? 'car', { colour: m.colour ?? 'green', size: 34, id: `mate-${m.id}` })}
+           </span>
+         </span>
        </div>`,
-      { size: [38, 38], zIndex: 900 },
+      { size: [44, 44], zIndex: 900 },
     ))
   }, [members, engine])
 
