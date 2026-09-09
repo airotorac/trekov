@@ -56,36 +56,33 @@ export default function Nearby({ centre, centreName }) {
         </p>
       )}
 
-      <ul className="space-y-2">
+      <ul className="grid grid-cols-2 gap-2">
         {results.map((r) => (
           <li key={r.id}
-              className={`rounded-2xl border p-3 ${r.partner ? 'border-brand/50 bg-brand/5' : 'border-line bg-surface'}`}>
-            <div className="flex items-start gap-2">
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold leading-tight truncate">
-                  {r.name}
-                  {r.partner && (
-                    <span className="ml-2 rounded-full bg-brand text-ink text-[9px] font-bold
-                                     uppercase tracking-[0.1em] px-1.5 py-0.5 align-middle">
-                      {r.verified ? 'Verified partner' : 'Partner'}
-                    </span>
-                  )}
-                </p>
-                {r.detail && <p className="text-xs text-mist truncate mt-0.5">{r.detail}</p>}
-                <div className="flex items-center gap-2 mt-1.5 text-[11px]">
-                  {r.rating != null && (
-                    <span className="text-sun">★ {r.rating.toFixed(1)}
-                      {r.reviews ? <span className="text-mist"> ({r.reviews})</span> : null}
-                    </span>
-                  )}
-                  {r.openNow === true && <span className="text-brand">Open now</span>}
-                  {r.openNow === false && <span className="text-mist">Closed</span>}
-                  {r.phone && <a href={`tel:${r.phone}`} className="text-brand font-medium">Call</a>}
-                </div>
-              </div>
+              className={`flex flex-col rounded-2xl border p-3 ${r.partner ? 'border-brand/50 bg-brand/5' : 'border-line bg-surface'}`}>
+            {r.partner && (
+              <span className="self-start rounded-full bg-brand text-ink text-[9px] font-bold
+                               uppercase tracking-[0.1em] px-1.5 py-0.5 mb-1.5">
+                {r.verified ? 'Verified partner' : 'Partner'}
+              </span>
+            )}
+            <p className="text-sm font-semibold leading-tight line-clamp-2">{r.name}</p>
+            {r.detail && <p className="text-[11px] text-mist line-clamp-2 mt-0.5">{r.detail}</p>}
+
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-2 text-[11px]">
+              {r.rating != null && (
+                <span className="text-sun">★ {r.rating.toFixed(1)}
+                  {r.reviews ? <span className="text-mist"> ({r.reviews})</span> : null}
+                </span>
+              )}
+              {r.openNow === true && <span className="text-brand">Open</span>}
+              {r.openNow === false && <span className="text-mist">Closed</span>}
+            </div>
+
+            <div className="flex items-center gap-3 mt-auto pt-2 text-[11px] font-semibold">
+              {r.phone && <a href={`tel:${r.phone}`} className="text-brand">Call</a>}
               <a href={`https://www.google.com/maps/search/?api=1&query=${r.lat},${r.lng}`}
-                 target="_blank" rel="noreferrer"
-                 className="text-[11px] text-brand font-semibold shrink-0">Map</a>
+                 target="_blank" rel="noreferrer" className="text-brand ml-auto">Map</a>
             </div>
           </li>
         ))}

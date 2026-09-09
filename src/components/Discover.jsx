@@ -103,26 +103,28 @@ export default function Discover({ onOpenPlace, onNavigate }) {
               Ranked by how many different people have photographed the place — and photos
               can only be taken there, in the app.
             </p>
-            <ol className="space-y-2">
-              {mostVisited.slice(0, 8).map((p, i) => (
-                <li key={p.id}>
+            <ul className="flex gap-2.5 overflow-x-auto no-bar pb-1 -mx-4 px-4">
+              {mostVisited.slice(0, 10).map((p, i) => (
+                <li key={p.id} className="shrink-0 w-40">
                   <button onClick={() => onOpenPlace(p.id)}
-                          className="w-full flex items-center gap-3 bg-surface border border-line rounded-2xl p-2.5 text-left hover:border-brand/50">
-                    <span className="grid place-items-center size-7 rounded-full bg-brand/15 text-brand
-                                     text-xs font-bold shrink-0 tabular-nums">{i + 1}</span>
-                    <Thumb place={p} className="size-14 rounded-xl" />
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-sm font-semibold truncate">{p.name}</span>
-                      <span className="block text-xs text-mist truncate">{p.region}</span>
+                          className="w-full text-left bg-surface border border-line rounded-2xl overflow-hidden
+                                     hover:border-brand/50 transition">
+                    <span className="relative block">
+                      <Thumb place={p} className="w-full h-24 rounded-none" />
+                      <span className="absolute top-2 left-2 grid place-items-center size-6 rounded-full
+                                       bg-ink/85 text-brand text-[11px] font-bold tabular-nums">{i + 1}</span>
                     </span>
-                    <span className="text-right shrink-0">
-                      <span className="block text-sm font-semibold tabular-nums">{p.visitors}</span>
-                      <span className="block text-[10px] text-mist">visitor{p.visitors === 1 ? '' : 's'}</span>
+                    <span className="block p-2.5">
+                      <span className="block text-sm font-semibold truncate">{p.name}</span>
+                      <span className="block text-[11px] text-mist truncate">{p.region}</span>
+                      <span className="block text-[11px] text-brand mt-1 tabular-nums">
+                        {p.visitors} visitor{p.visitors === 1 ? '' : 's'}
+                      </span>
                     </span>
                   </button>
                 </li>
               ))}
-            </ol>
+            </ul>
           </section>
         )}
 
@@ -137,16 +139,18 @@ export default function Discover({ onOpenPlace, onNavigate }) {
               No new places yet. Add one from the camera screen and everyone gets told.
             </p>
           ) : (
-            <ul className="space-y-2">
+            <ul className="flex gap-2.5 overflow-x-auto no-bar pb-1 -mx-4 px-4">
               {newPlaces.map((p) => (
-                <li key={p.id}>
+                <li key={p.id} className="shrink-0 w-40">
                   <button onClick={() => onOpenPlace(p.id)}
-                          className="w-full flex items-center gap-3 bg-surface border border-line rounded-2xl p-2.5 text-left hover:border-brand/50">
-                    <Thumb place={p} className="size-14 rounded-xl" />
-                    <span className="min-w-0 flex-1">
+                          className="w-full text-left bg-surface border border-line rounded-2xl overflow-hidden
+                                     hover:border-brand/50 transition">
+                    <Thumb place={p} className="w-full h-24 rounded-none" />
+                    <span className="block p-2.5">
                       <span className="block text-sm font-semibold truncate">{p.name}</span>
-                      <span className="block text-xs text-mist truncate">
-                        {p.region} · added {ago(p.addedAt)} by @{getUser(p.addedBy).handle}
+                      <span className="block text-[11px] text-mist truncate">{p.region}</span>
+                      <span className="block text-[11px] text-mist mt-1 truncate">
+                        {ago(p.addedAt)} · @{getUser(p.addedBy).handle}
                       </span>
                     </span>
                   </button>
@@ -160,20 +164,28 @@ export default function Discover({ onOpenPlace, onNavigate }) {
         {notifications.length > 0 && (
           <section>
             <h2 className="text-xs uppercase tracking-[0.14em] text-mist mb-3">Alerts</h2>
-            <ul className="space-y-1.5">
+            <ul className="grid grid-cols-2 gap-2">
               {notifications.map((n) => {
                 const place = getPlace(n.placeId)
                 return (
                   <li key={n.id}>
                     <button onClick={() => place && onOpenPlace(place.id)}
-                            className={`w-full flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-sm
-                                        ${n.read ? 'text-mist' : 'bg-brand/10 text-white'}`}>
-                      {!n.read && <span className="size-1.5 rounded-full bg-brand shrink-0" />}
-                      <span className="min-w-0 flex-1 truncate">
-                        <span className="font-semibold">@{getUser(n.by).handle}</span> added{' '}
-                        <span className="font-semibold">{place?.name ?? 'a new place'}</span>
+                            className={`w-full h-full text-left rounded-2xl border p-3 transition
+                                        ${n.read
+                                          ? 'border-line bg-surface text-mist hover:border-mist'
+                                          : 'border-brand/50 bg-brand/10 text-white'}`}>
+                      <span className="flex items-center gap-1.5">
+                        {!n.read && <span className="size-1.5 rounded-full bg-brand shrink-0" />}
+                        <span className="text-[10px] uppercase tracking-[0.1em] text-mist truncate">
+                          {timeAgo(n.at)}
+                        </span>
                       </span>
-                      <span className="text-[11px] text-mist shrink-0">{timeAgo(n.at)}</span>
+                      <span className="block text-sm font-semibold truncate mt-1">
+                        {place?.name ?? 'A new place'}
+                      </span>
+                      <span className="block text-[11px] text-mist truncate">
+                        added by @{getUser(n.by).handle}
+                      </span>
                     </button>
                   </li>
                 )
