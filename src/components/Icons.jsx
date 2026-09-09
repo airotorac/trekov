@@ -77,3 +77,9 @@ export const TrashIcon = (p) => (
 export const CameraIcon = (p) => (
   <Icon {...p}><path d="M3.5 8.5h3l1.4-2h6.2l1.4 2h3a1.5 1.5 0 0 1 1.5 1.5v8a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 2 18v-8A1.5 1.5 0 0 1 3.5 8.5Z" /><circle cx="12" cy="14" r="3.4" /></Icon>
 )
+export const CompassIcon = (p) => (
+  <Icon {...p}><circle cx="12" cy="12" r="8.6" /><path d="m15.2 8.8-2 4.4-4.4 2 2-4.4Z" /></Icon>
+)
+export const RouteIcon = (p) => (
+  <Icon {...p}><circle cx="6.5" cy="6.5" r="2.5" /><circle cx="17.5" cy="17.5" r="2.5" /><path d="M9 6.5h5A3.5 3.5 0 0 1 14 13.5h-4a3.5 3.5 0 0 0 0 7h5" /></Icon>
+)

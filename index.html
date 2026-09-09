@@ -1,18 +1,424 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
-    <meta name="theme-color" content="#0B0F0E" />
-    <title>Trekov — places worth going</title>
-    <meta name="description" content="Trekov is where travellers post the places they've been, and everyone else saves them to go." />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+<meta name="theme-color" content="#0B0F0E" />
+<title>Trekov — the map is the feed</title>
+<meta name="description" content="Zoom into anywhere on the map, see what people actually shot there, save the place, and build the trip from what you find." />
+<meta property="og:title" content="Trekov — the map is the feed" />
+<meta property="og:description" content="Zoom into anywhere on the map, see what people actually shot there, save the place, and build the trip from what you find." />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://trekov.in" />
+<meta name="twitter:card" content="summary_large_image" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --ink: #0B0F0E;
+    --surface: #121917;
+    --raised: #18211E;
+    --line: #1F2C28;
+    --brand: #00C08B;
+    --brand-lt: #3DDC97;
+    --sun: #FFB33E;
+    --text: #EEF3F1;
+    --mist: #8FA39C;
+    --wrap: 1120px;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0; background: var(--ink); color: var(--text);
+    font: 400 17px/1.6 Outfit, ui-sans-serif, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: inherit; }
+  .wrap { width: min(100% - 44px, var(--wrap)); margin-inline: auto; }
+
+  /* ---------------------------------------------------------------- nav -- */
+  nav {
+    position: sticky; top: 0; z-index: 50;
+    background: color-mix(in srgb, var(--ink) 82%, transparent);
+    backdrop-filter: blur(18px);
+    border-bottom: 1px solid var(--line);
+  }
+  .nav-in { display: flex; align-items: center; justify-content: space-between; height: 68px; }
+  .brand { display: flex; align-items: center; gap: 9px; font-size: 25px; font-weight: 600; letter-spacing: -.035em; text-decoration: none; }
+
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    border-radius: 999px; padding: 12px 22px;
+    font-weight: 600; font-size: 15px; text-decoration: none;
+    border: 1px solid transparent; cursor: pointer;
+    transition: transform .15s ease, background .15s ease, border-color .15s ease;
+  }
+  .btn:active { transform: scale(.97); }
+  .btn-primary { background: var(--brand); color: var(--ink); }
+  .btn-primary:hover { background: var(--brand-lt); }
+  .btn-ghost { border-color: var(--line); color: var(--text); }
+  .btn-ghost:hover { border-color: var(--brand); color: var(--brand); }
+  .btn-sm { padding: 9px 17px; font-size: 14px; }
+
+  /* -------------------------------------------------------------- hero -- */
+  header.hero { position: relative; overflow: hidden; padding: clamp(64px, 10vw, 132px) 0 0; }
+  header.hero::before {
+    content: ""; position: absolute; inset: -30% 0 auto 50%;
+    width: 1000px; height: 700px; translate: -50% 0;
+    background: radial-gradient(closest-side, rgba(0,192,139,.20), transparent 72%);
+    pointer-events: none;
+  }
+  .hero-in { position: relative; display: grid; gap: 60px; grid-template-columns: 1fr; align-items: center; }
+  @media (min-width: 940px) { .hero-in { grid-template-columns: 1.06fr .94fr; gap: 40px; } }
+
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 9px;
+    font-size: 13px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--brand-lt); background: rgba(0,192,139,.10);
+    border: 1px solid rgba(0,192,139,.24); border-radius: 999px; padding: 7px 15px;
+  }
+  h1 {
+    margin: 22px 0 0; font-weight: 600; letter-spacing: -.038em;
+    font-size: clamp(2.7rem, 6.4vw, 4.6rem); line-height: 1.03;
+  }
+  h1 em { font-style: normal; color: var(--brand); }
+  .lede { margin: 22px 0 0; max-width: 33ch; font-size: clamp(17px, 2vw, 19.5px); color: var(--mist); }
+  .cta-row { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 34px; }
+  .note { margin-top: 16px; font-size: 13.5px; color: var(--mist); }
+
+  /* ------------------------------------------------------------ phones -- */
+  .phones { display: flex; justify-content: center; gap: 20px; perspective: 1400px; }
+  .phone {
+    width: 252px; flex: none; border-radius: 34px; padding: 8px;
+    background: linear-gradient(160deg, #29332F, #101614);
+    box-shadow: 0 40px 90px -30px rgba(0,0,0,.9), 0 0 0 1px rgba(255,255,255,.05);
+  }
+  .phone.tilt-l { transform: rotateY(11deg) rotateX(3deg) translateY(10px); }
+  .phone.tilt-r { transform: rotateY(-11deg) rotateX(3deg) translateY(-14px); }
+  @media (max-width: 720px) { .phone.tilt-l, .phone.tilt-r { transform: none; } .phone:nth-child(2) { display: none; } }
+  .screen {
+    background: var(--ink); border-radius: 27px; overflow: hidden;
+    font-size: 12px; line-height: 1.35; height: 466px; position: relative;
+  }
+  .sbar { display: flex; align-items: center; justify-content: space-between; padding: 11px 13px 9px; font-size: 10px; color: var(--mist); }
+  .sbar .brandmini { display: flex; align-items: center; gap: 5px; color: var(--text); font-weight: 600; font-size: 14px; letter-spacing: -.03em; }
+  .shot { width: 100%; aspect-ratio: 4/5; object-fit: cover; background: var(--raised); display: block; }
+  .who { display: flex; align-items: center; gap: 8px; padding: 8px 12px; }
+  .av { width: 26px; height: 26px; border-radius: 50%; object-fit: cover; flex: none; background: var(--raised); }
+  .who b { font-size: 11.5px; font-weight: 600; }
+  .who span { font-size: 10px; color: var(--mist); display: block; }
+  .placechip {
+    position: absolute; left: 10px; bottom: 10px; display: flex; align-items: center; gap: 6px;
+    background: rgba(0,0,0,.6); backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,.12);
+    border-radius: 999px; padding: 6px 11px; font-size: 11px; font-weight: 500;
+  }
+  .placechip i { color: var(--mist); font-style: normal; font-weight: 400; }
+  .acts { display: flex; align-items: center; gap: 13px; padding: 10px 12px 4px; color: var(--mist); font-size: 11px; }
+  .savepill { margin-left: auto; display: flex; align-items: center; gap: 5px; background: var(--brand); color: var(--ink); font-weight: 600; border-radius: 999px; padding: 5px 11px; }
+  .cap { padding: 2px 12px 0; font-size: 11.5px; color: rgba(238,243,241,.9); }
+  .season { display: inline-flex; align-items: center; gap: 5px; margin: 8px 12px 0; font-size: 10px; color: var(--sun); background: rgba(255,179,62,.12); border-radius: 999px; padding: 4px 9px; }
+
+  .listhead { display: flex; align-items: baseline; justify-content: space-between; padding: 13px 14px 10px; border-bottom: 1px solid var(--line); }
+  .listhead h4 { margin: 0; font-size: 15px; font-weight: 600; }
+  .listhead span { font-size: 10px; color: var(--mist); }
+  .country { font-size: 9px; letter-spacing: .14em; text-transform: uppercase; color: var(--mist); padding: 14px 14px 8px; }
+  .row { display: flex; gap: 10px; margin: 0 12px 9px; padding: 9px; background: var(--surface); border: 1px solid var(--line); border-radius: 15px; }
+  .row img { width: 52px; height: 52px; border-radius: 11px; object-fit: cover; flex: none; background: var(--raised); }
+  .row b { display: block; font-size: 12px; font-weight: 600; }
+  .row small { display: block; font-size: 10px; color: var(--mist); }
+  .row .map { margin-left: auto; align-self: flex-end; font-size: 10px; color: var(--brand); font-weight: 600; }
+  .tabs { position: absolute; inset: auto 0 0; display: flex; justify-content: space-around; align-items: center; padding: 9px 0 11px; border-top: 1px solid var(--line); background: rgba(11,15,14,.94); backdrop-filter: blur(10px); font-size: 8.5px; color: var(--mist); }
+  .tabs div { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+  .tabs .on { color: var(--brand); }
+  .fab { width: 34px; height: 34px; border-radius: 11px; background: var(--brand); color: var(--ink); display: grid; place-items: center; }
+
+  /* ----------------------------------------------------------- sections -- */
+  section { padding: clamp(74px, 10vw, 122px) 0; }
+  .kicker { font-size: 13px; letter-spacing: .14em; text-transform: uppercase; color: var(--brand); margin: 0 0 14px; }
+  h2 { margin: 0; font-size: clamp(1.9rem, 4vw, 2.9rem); font-weight: 600; letter-spacing: -.032em; line-height: 1.1; }
+  .sub { margin: 16px 0 0; max-width: 56ch; color: var(--mist); font-size: 17.5px; }
+
+  .steps { display: grid; gap: 22px; margin-top: 56px; grid-template-columns: 1fr; counter-reset: s; }
+  @media (min-width: 820px) { .steps { grid-template-columns: repeat(3, 1fr); gap: 26px; } }
+  .step { border-top: 2px solid var(--line); padding-top: 24px; counter-increment: s; transition: border-color .2s ease; }
+  .step:hover { border-color: var(--brand); }
+  .step::before { content: "0" counter(s); display: block; font-size: 13px; font-weight: 600; color: var(--brand); letter-spacing: .1em; margin-bottom: 12px; }
+  .step h3 { margin: 0 0 8px; font-size: 21px; font-weight: 600; letter-spacing: -.02em; }
+  .step p { margin: 0; color: var(--mist); font-size: 16px; }
+
+  .grid { display: grid; gap: 18px; margin-top: 54px; grid-template-columns: 1fr; }
+  @media (min-width: 760px) { .grid { grid-template-columns: repeat(2, 1fr); } }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 20px; padding: 30px; transition: border-color .2s ease, transform .2s ease; }
+  .card:hover { border-color: rgba(0,192,139,.42); transform: translateY(-2px); }
+  .card h3 { margin: 16px 0 9px; font-size: 20px; font-weight: 600; letter-spacing: -.02em; }
+  .card p { margin: 0; color: var(--mist); font-size: 16px; }
+  .card .ic { width: 42px; height: 42px; border-radius: 12px; background: rgba(0,192,139,.11); color: var(--brand); display: grid; place-items: center; }
+
+  .band { border-block: 1px solid var(--line); background: var(--surface); }
+
+  /* -------------------------------------------------------------- form -- */
+  .signup { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 32px; max-width: 480px; }
+  .signup input {
+    flex: 1 1 240px; min-width: 0; background: var(--raised); color: var(--text);
+    border: 1px solid var(--line); border-radius: 999px; padding: 13px 20px;
+    font: inherit; font-size: 15.5px; outline: none;
+  }
+  .signup input::placeholder { color: var(--mist); }
+  .signup input:focus { border-color: var(--brand); }
+  .form-msg { margin-top: 14px; font-size: 14.5px; color: var(--brand); min-height: 20px; }
+
+  footer { border-top: 1px solid var(--line); padding: 46px 0; }
+  .foot { display: flex; flex-wrap: wrap; gap: 18px; align-items: center; justify-content: space-between; color: var(--mist); font-size: 14px; }
+  .foot a { text-decoration: none; }
+  .foot a:hover { color: var(--brand); }
+  .dot { opacity: .4; margin: 0 8px; }
+
+  /* map + place-sheet mockups */
+  .mapmock { position: relative; height: 400px; overflow: hidden; background: #0E1413; }
+  .maptile { width: 100%; height: 100%; object-fit: cover; filter: brightness(.72) saturate(.85); }
+  .searchbar {
+    position: absolute; top: 10px; left: 10px; right: 10px; display: flex; align-items: center; gap: 6px;
+    background: rgba(11,15,14,.9); border: 1px solid var(--line); border-radius: 999px;
+    padding: 7px 12px; font-size: 10px; color: var(--mist); backdrop-filter: blur(8px);
+  }
+  .mpin { position: absolute; translate: -50% -100%; text-align: center; }
+  .mpin i {
+    display: block; width: 34px; height: 34px; border-radius: 50%;
+    border: 2px solid var(--brand); background: #18211E center/cover no-repeat;
+    box-shadow: 0 5px 14px rgba(0,0,0,.7);
+  }
+  .mpin::after { content: ""; position: absolute; left: 50%; top: 32px; translate: -50% 0; border: 5px solid transparent; border-top-color: var(--brand); }
+  .mpin b {
+    position: absolute; top: -4px; right: -6px; background: var(--brand); color: var(--ink);
+    font-size: 8px; font-weight: 700; border-radius: 999px; min-width: 14px; height: 14px;
+    display: grid; place-items: center; padding: 0 3px;
+  }
+  .mpin u { display: block; margin-top: 8px; font-size: 9px; font-weight: 600; text-decoration: none; text-shadow: 0 1px 4px #000; white-space: nowrap; }
+  .mpin.saved i { border-color: var(--sun); }
+  .mpin.saved::after { border-top-color: var(--sun); }
+  .mpin.saved b { background: var(--sun); }
+
+  .sheettop { width: 100%; height: 108px; object-fit: cover; display: block; filter: brightness(.8); }
+  .sheet { padding: 12px 13px; }
+  .sheet h4 { margin: 0; font-size: 15px; font-weight: 600; letter-spacing: -.02em; }
+  .sheet small { color: var(--mist); font-size: 10px; }
+  .blurb { margin: 7px 0 0; font-size: 10.5px; color: rgba(238,243,241,.85); line-height: 1.4; }
+  .chips { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+  .chips .muted { font-size: 9.5px; color: var(--mist); }
+  .sheetbtns { display: flex; gap: 6px; margin-top: 10px; }
+  .sheetbtns span { flex: 1; text-align: center; border-radius: 999px; padding: 6px 0; font-size: 10px; font-weight: 600; }
+  .ghostpill { border: 1px solid var(--line); color: var(--mist); }
+  .segs { display: flex; gap: 4px; margin-top: 11px; }
+  .segs span { font-size: 10px; color: var(--mist); padding: 4px 9px; border-radius: 999px; }
+  .segs .on { background: var(--raised); color: var(--text); font-weight: 600; }
+  .thumbs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin-top: 10px; }
+  .thumbs img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 6px; background: var(--raised); }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap nav-in">
+    <a class="brand" href="/">
+      <svg viewBox="0 0 64 64" width="26" height="26" aria-hidden="true"><defs><linearGradient id="n" x1="8" y1="4" x2="56" y2="60" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#3DDC97"/><stop offset=".55" stop-color="#00C08B"/><stop offset="1" stop-color="#0E9F6E"/></linearGradient></defs><path fill="url(#n)" fill-rule="evenodd" d="M32 61C32 61 53 40.5 53 25A21 21 0 1 0 11 25C11 40.5 32 61 32 61ZM17 34.5L26.5 20L31.5 28L37.5 11.5L47 34.5Z"/></svg>
+      trekov
+    </a>
+    <a class="btn btn-primary btn-sm" href="/app/">Try the demo</a>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="wrap hero-in">
+    <div>
+      <span class="eyebrow">In development · India first</span>
+      <h1>The <em>map</em><br />is the feed.</h1>
+      <p class="lede">
+        Zoom into anywhere and every pin is a place someone has been. Open it for the
+        recent shots, save it to your list, then drop it into a trip and send the
+        whole itinerary to whoever is coming.
+      </p>
+      <div class="cta-row">
+        <a class="btn btn-primary" href="/app/">Try the demo</a>
+        <a class="btn btn-ghost" href="#early">Get early access</a>
+      </div>
+      <p class="note">No account needed for the demo. Everything stays on your device.</p>
+    </div>
+
+    <div class="phones">
+      <!-- Map -->
+      <div class="phone tilt-l">
+        <div class="screen">
+          <div class="mapmock">
+            <img class="maptile" src="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/4/6/11" alt="Satellite map of India" />
+            <div class="searchbar">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="#8FA39C" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-3.4-3.4"/></svg>
+              Search a place or region…
+            </div>
+            <span class="mpin" style="left:30%; top:26%"><i style="background-image:url('https://picsum.photos/seed/trekov-himalaya-lake/80/80')"></i><b>3</b><u>Pangong Tso</u></span>
+            <span class="mpin" style="left:16%; top:52%"><i style="background-image:url('https://picsum.photos/seed/trekov-desert-saltflat/80/80')"></i><b>2</b><u>Rann of Kutch</u></span>
+            <span class="mpin" style="left:58%; top:44%"><i style="background-image:url('https://picsum.photos/seed/trekov-waterfall-cliff/80/80')"></i><b>2</b><u>Nohkalikai</u></span>
+            <span class="mpin saved" style="left:36%; top:74%"><i style="background-image:url('https://picsum.photos/seed/trekov-tea-plantation/80/80')"></i><b>2</b><u>Munnar</u></span>
+          </div>
+          <div class="tabs">
+            <div class="on"><span>◎</span>Map</div>
+            <div><span>⇄</span>Trips</div>
+            <div class="fab">+</div>
+            <div><span>◉</span>To Visit</div>
+            <div><span>☺</span>You</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Place opened -->
+      <div class="phone tilt-r">
+        <div class="screen">
+          <img class="sheettop" src="https://picsum.photos/seed/trekov-monastery-himalaya/480/300" alt="" />
+          <div class="sheet">
+            <h4>Key Monastery</h4>
+            <small>Spiti Valley · India</small>
+            <p class="blurb">Thousand-year-old monastery stacked on a hill at 13,600ft.</p>
+            <div class="chips"><span class="season">Best Jun–Sep</span><span class="muted">2 photos</span></div>
+            <div class="sheetbtns"><span class="savepill">Save place</span><span class="ghostpill">+ Add to trip</span></div>
+            <div class="segs"><span class="on">Recent</span><span>Most liked</span></div>
+            <div class="thumbs">
+              <img src="https://picsum.photos/seed/trekov-monastery-himalaya/120/120" alt="" />
+              <img src="https://picsum.photos/seed/trekov-key-winter/120/120" alt="" />
+              <img src="https://picsum.photos/seed/trekov-chandratal-camp/120/120" alt="" />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<section>
+  <div class="wrap">
+    <p class="kicker">How it works</p>
+    <h2>From a pin on a map<br />to a trip you can send.</h2>
+    <div class="steps">
+      <div class="step">
+        <h3>Zoom in</h3>
+        <p>Pan anywhere on the map. Every pin is a real place, sized by how many people have shot there.</p>
+      </div>
+      <div class="step">
+        <h3>Open the place</h3>
+        <p>Recent photos first, with the season to go, what to know before you do, and a map link.</p>
+      </div>
+      <div class="step">
+        <h3>Plan it, send it</h3>
+        <p>Drop places into a trip, order the stops, add notes — then share the whole itinerary as a link.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="band">
+  <div class="wrap">
+    <p class="kicker">Why not just use Instagram</p>
+    <h2>Because a saved post isn't a plan.</h2>
+    <p class="sub">
+      Screenshots and saved folders are where travel inspiration goes to die. Trekov
+      is organised the way you actually search — by where, not by who.
+    </p>
+
+    <div class="grid">
+      <div class="card">
+        <div class="ic"><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11Z"/><circle cx="12" cy="10" r="2.4"/></svg></div>
+        <h3>Geography, not a timeline</h3>
+        <p>Photos live on the map where they were taken. Zoom into a valley and see everything anyone has shot in it.</p>
+      </div>
+      <div class="card">
+        <div class="ic"><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M8 3v4M16 3v4M3.5 10h17"/></svg></div>
+        <h3>Seasons, not just scenery</h3>
+        <p>Every place carries its window. Half the country is spectacular in October and shut in January — the list knows which.</p>
+      </div>
+      <div class="card">
+        <div class="ic"><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg></div>
+        <h3>Trips you can hand over</h3>
+        <p>Build an itinerary from the map, then share it as a link. Whoever opens it gets the stops, the notes and the dates.</p>
+      </div>
+      <div class="card">
+        <div class="ic"><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/><circle cx="12" cy="12" r="3.4"/></svg></div>
+        <h3>A list you'll actually open</h3>
+        <p>Saved places group by country, keep their best season, and link straight to Maps. Not a folder of 400 unlabelled screenshots.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="early">
+  <div class="wrap">
+    <p class="kicker">Early access</p>
+    <h2>Trekov is being built in the open.</h2>
+    <p class="sub">
+      Leave an email and you'll get the first real build — accounts, your own photos on
+      the map, and trips that sync between devices.
+    </p>
+
+    <form class="signup" id="signup" novalidate>
+      <input type="email" name="email" id="email" placeholder="you@email.com" autocomplete="email" required aria-label="Your email" />
+      <button class="btn btn-primary" type="submit">Get early access</button>
+    </form>
+    <p class="form-msg" id="msg" role="status"></p>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap foot">
+    <span class="brand" style="font-size:19px">
+      <svg viewBox="0 0 64 64" width="19" height="19" aria-hidden="true"><path fill="#00C08B" fill-rule="evenodd" d="M32 61C32 61 53 40.5 53 25A21 21 0 1 0 11 25C11 40.5 32 61 32 61ZM17 34.5L26.5 20L31.5 28L37.5 11.5L47 34.5Z"/></svg>
+      trekov
+    </span>
+    <span>trekov.in <span class="dot">·</span> trekov.com <span class="dot">·</span> Made in India</span>
+    <span><a href="/app/">Try the demo</a> <span class="dot">·</span> <a href="mailto:punit13690@gmail.com">Contact</a></span>
+  </div>
+</footer>
+
+<script>
+  // Drop a Formspree (or similar) form ID here and the signup posts to it.
+  // Until then the form hands off to the visitor's mail client, so the button
+  // does something real on day one instead of pretending to.
+  const FORM_ENDPOINT = ''
+  const CONTACT_EMAIL = 'punit13690@gmail.com'
+
+  const form = document.getElementById('signup')
+  const msg = document.getElementById('msg')
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault()
+    const email = document.getElementById('email').value.trim()
+    if (!/^\S+@\S+\.\S+$/.test(email)) {
+      msg.style.color = '#FF5C7A'
+      msg.textContent = 'That email address looks incomplete.'
+      return
+    }
+    msg.style.color = 'var(--brand)'
+
+    if (!FORM_ENDPOINT) {
+      msg.textContent = 'Opening your mail app…'
+      window.location.href =
+        `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent('Trekov early access')}` +
+        `&body=${encodeURIComponent(`Add me to the Trekov early access list: ${email}`)}`
+      return
+    }
+
+    try {
+      const res = await fetch(FORM_ENDPOINT, {
+        method: 'POST',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      })
+      if (!res.ok) throw new Error(res.status)
+      form.reset()
+      msg.textContent = "You're on the list. I'll be in touch when the first build lands."
+    } catch {
+      msg.style.color = '#FF5C7A'
+      msg.textContent = `Something broke on our end. Email ${CONTACT_EMAIL} and I'll add you by hand.`
+    }
+  })
+</script>
+</body>
 </html>

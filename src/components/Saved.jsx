@@ -1,15 +1,14 @@
-import { getUser, selectSaved, toggleSave, useStore } from '../lib/store'
+import { selectSavedPlaces, toggleSavePlace, useStore } from '../lib/store'
 import { mapsUrl } from '../lib/format'
 import { CalendarIcon, CloseIcon, Logo } from './Icons'
 import Media from './Media'
 
-/** The to-visit list — the reason the app exists. */
-export default function Saved({ onExplore }) {
-  const saved = useStore(selectSaved)
+/** The to-visit list — places, not posts. */
+export default function Saved({ onExplore, onOpenPlace }) {
+  const saved = useStore(selectSavedPlaces)
 
-  const byRegion = saved.reduce((acc, p) => {
-    const key = p.place.country || 'Elsewhere'
-    ;(acc[key] ||= []).push(p)
+  const byCountry = saved.reduce((acc, p) => {
+    ;(acc[p.country || 'Elsewhere'] ||= []).push(p)
     return acc
   }, {})
 
@@ -26,42 +25,43 @@ export default function Saved({ onExplore }) {
           <Logo size={54} />
           <h2 className="text-lg font-semibold">Your list is empty</h2>
           <p className="text-sm text-mist leading-relaxed">
-            Tap <span className="text-brand font-medium">Save</span> on any post and the place lands here,
+            Zoom the map into somewhere, open a place and tap
+            <span className="text-brand font-medium"> Save place</span>. It lands here,
             ready for the next time you're actually planning a trip.
           </p>
-          <button onClick={onExplore}
-                  className="mt-2 rounded-full bg-brand text-ink font-semibold text-sm px-5 py-2.5">
-            Find places
+          <button onClick={onExplore} className="mt-2 rounded-full bg-brand text-ink font-semibold text-sm px-5 py-2.5">
+            Open the map
           </button>
         </div>
       ) : (
         <div className="p-4 space-y-7">
-          {Object.entries(byRegion).map(([country, list]) => (
+          {Object.entries(byCountry).map(([country, list]) => (
             <section key={country}>
               <h2 className="text-xs uppercase tracking-[0.14em] text-mist mb-3">{country}</h2>
               <ul className="space-y-3">
                 {list.map((p) => (
                   <li key={p.id} className="rise flex gap-3 bg-surface border border-line rounded-2xl p-3">
-                    <Media media={p.media} alt={p.place.name} className="size-20 rounded-xl object-cover shrink-0" />
-                    <div className="min-w-0 flex-1">
-                      <p className="font-semibold leading-tight truncate">{p.place.name}</p>
-                      <p className="text-xs text-mist truncate">{p.place.region}</p>
+                    <button onClick={() => onOpenPlace(p.id)} className="shrink-0">
+                      {p.cover
+                        ? <Media media={p.cover} alt={p.name} className="size-20 rounded-xl object-cover" />
+                        : <span className="grid place-items-center size-20 rounded-xl bg-raised"><Logo size={22} /></span>}
+                    </button>
+                    <button onClick={() => onOpenPlace(p.id)} className="min-w-0 flex-1 text-left">
+                      <p className="font-semibold leading-tight truncate">{p.name}</p>
+                      <p className="text-xs text-mist truncate">{p.region}</p>
                       {p.bestTime && (
                         <p className="mt-1.5 inline-flex items-center gap-1.5 text-[11px] text-sun/90 bg-sun/10 rounded-full px-2 py-0.5">
                           <CalendarIcon size={12} /> {p.bestTime}
                         </p>
                       )}
-                      <p className="text-[11px] text-mist mt-1.5 truncate">
-                        via @{getUser(p.authorId).handle}
-                      </p>
-                    </div>
+                      <p className="text-[11px] text-mist mt-1.5">{p.postCount} photo{p.postCount === 1 ? '' : 's'}</p>
+                    </button>
                     <div className="flex flex-col items-end justify-between shrink-0">
-                      <button onClick={() => toggleSave(p.id)} className="text-mist hover:text-rose p-1"
-                              aria-label={`Remove ${p.place.name}`}>
+                      <button onClick={() => toggleSavePlace(p.id)} className="text-mist hover:text-rose p-1"
+                              aria-label={`Remove ${p.name}`}>
                         <CloseIcon size={17} />
                       </button>
-                      <a href={mapsUrl(p.place)} target="_blank" rel="noreferrer"
-                         className="text-xs text-brand font-medium">Map</a>
+                      <a href={mapsUrl(p)} target="_blank" rel="noreferrer" className="text-xs text-brand font-medium">Map</a>
                     </div>
                   </li>
                 ))}

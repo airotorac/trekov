@@ -35,3 +35,59 @@ body {
 
 @keyframes sheet-up { from { transform: translateY(100%) } to { transform: none } }
 .sheet-up { animation: sheet-up .28s cubic-bezier(.22,1,.36,1) both; }
+
+/* ------------------------------------------------------------------ map -- */
+/* Leaflet paints its own chrome; these override it to match the app. */
+.leaflet-container { background: #0E1413; font-family: var(--font-display); }
+/* Knock the imagery back so the markers and app chrome stay legible on top. */
+.leaflet-tile-pane { filter: brightness(.78) saturate(.85) contrast(1.02); }
+.leaflet-shadow-pane { filter: brightness(1.15); opacity: .85; }
+.leaflet-control-attribution {
+  background: rgba(11,15,14,.72) !important; color: #6B7F78 !important;
+  font-size: 9px !important; backdrop-filter: blur(6px);
+}
+.leaflet-control-attribution a { color: #8FA39C !important; }
+.leaflet-bar a {
+  background: #121917 !important; color: #EEF3F1 !important;
+  border-color: #1F2C28 !important;
+}
+.leaflet-bar a:hover { background: #18211E !important; }
+
+.tk-marker { background: none; border: 0; }
+
+.tk-pin { position: relative; width: 54px; cursor: pointer; }
+.tk-pin-img {
+  width: 46px; height: 46px; margin: 0 auto; border-radius: 50%;
+  background: #18211E center/cover no-repeat;
+  border: 2.5px solid #00C08B;
+  box-shadow: 0 6px 18px rgba(0,0,0,.6);
+  transition: transform .16s ease;
+}
+.tk-pin::after {
+  content: ""; position: absolute; left: 50%; top: 44px; translate: -50% 0;
+  border: 6px solid transparent; border-top-color: #00C08B;
+}
+.tk-pin.is-saved .tk-pin-img { border-color: #FFB33E; }
+.tk-pin.is-saved::after { border-top-color: #FFB33E; }
+.tk-pin:hover .tk-pin-img { transform: scale(1.09); }
+.tk-pin-count {
+  position: absolute; top: -3px; right: 1px;
+  background: #00C08B; color: #0B0F0E; font-size: 10px; font-weight: 700;
+  border-radius: 999px; min-width: 18px; height: 18px; padding: 0 5px;
+  display: grid; place-items: center;
+}
+.tk-pin-label {
+  position: absolute; top: 56px; left: 50%; translate: -50% 0;
+  white-space: nowrap; font-size: 10.5px; font-weight: 600; color: #EEF3F1;
+  text-shadow: 0 1px 4px rgba(0,0,0,.95);
+}
+
+.tk-cluster {
+  width: 52px; height: 52px; border-radius: 50%; cursor: pointer;
+  background: rgba(0,192,139,.16); border: 2px solid #00C08B;
+  backdrop-filter: blur(4px);
+  display: grid; place-content: center; text-align: center; line-height: 1;
+  box-shadow: 0 6px 18px rgba(0,0,0,.5);
+}
+.tk-cluster b { font-size: 16px; color: #EEF3F1; }
+.tk-cluster span { font-size: 8px; color: #8FA39C; margin-top: 2px; }

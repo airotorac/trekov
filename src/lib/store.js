@@ -1,43 +1,49 @@
-// Single source of truth for the app.
+// Single source of truth.
 //
-// Everything is kept client-side (localStorage for records, IndexedDB for
-// media) so the app is fully usable with no backend. Every read/write goes
-// through the functions below, so swapping in Supabase/Firebase later means
-// rewriting this file only — no component touches storage directly.
+// A *place* is the primary record: you browse the map, open a place, and see
+// what people shot there. Posts hang off places; saved places and trips are
+// both just ordered lists of place ids.
+//
+// Everything is client-side (localStorage for records, IndexedDB for media) so
+// the app works with no backend. Every read and write goes through this file,
+// so a real backend replaces this module alone.
 
 import { useSyncExternalStore } from 'react'
-import { POSTS, USERS } from './seed'
+import { PLACES, POSTS, USERS } from './seed'
 import { putBlob, delBlob } from './media'
 
-const KEY = 'trekov.state.v1'
+const KEY = 'trekov.state.v2'
 const ME = 'u_me'
 
 function initial() {
   return {
     users: USERS,
-    posts: POSTS.map((p) => ({ ...p, likedByMe: false, saved: false })),
-    // Places the user wants to go. Keyed by post id, ordered newest-first.
-    savedOrder: [],
-    profile: {
-      name: 'You', handle: 'you', bio: 'Collecting places, one at a time.',
-      avatar: USERS.u_me.avatar,
-    },
+    places: Object.fromEntries(PLACES.map((p) => [p.id, p])),
+    posts: POSTS.map((p) => ({ ...p, likedByMe: false })),
+    savedPlaces: [],   // place ids, newest first
+    trips: [],         // { id, title, start, end, notes, stops: [{ placeId, note }] }
+    profile: { name: 'You', handle: 'you', bio: 'Collecting places, one at a time.', avatar: USERS.u_me.avatar },
   }
 }
 
 function load() {
   try {
-    const raw = localStorage.getItem(KEY)
-    if (!raw) return initial()
-    const saved = JSON.parse(raw)
-    // Reconcile with the seed: pull in posts added since the last visit, and
-    // refresh demo media in place, without touching the user's own activity.
+    const saved = JSON.parse(localStorage.getItem(KEY) || 'null')
+    if (!saved) return initial()
+    const base = initial()
+    // Reconcile with the seed so demo content added since the last visit shows
+    // up, without touching anything the user made.
+    const seenPosts = new Set(saved.posts.map((p) => p.id))
     const seedById = new Map(POSTS.map((p) => [p.id, p]))
-    const merged = saved.posts.map((p) =>
-      seedById.has(p.id) ? { ...p, media: seedById.get(p.id).media } : p)
-    const known = new Set(saved.posts.map((p) => p.id))
-    const fresh = POSTS.filter((p) => !known.has(p.id)).map((p) => ({ ...p, likedByMe: false, saved: false }))
-    return { ...initial(), ...saved, posts: [...merged, ...fresh] }
+    return {
+      ...base,
+      ...saved,
+      places: { ...base.places, ...saved.places },
+      posts: [
+        ...saved.posts.map((p) => (seedById.has(p.id) ? { ...p, media: seedById.get(p.id).media } : p)),
+        ...POSTS.filter((p) => !seenPosts.has(p.id)).map((p) => ({ ...p, likedByMe: false })),
+      ],
+    }
   } catch {
     return initial()
   }
@@ -46,35 +52,29 @@ function load() {
 let state = load()
 const listeners = new Set()
 
-function persist() {
-  try {
-    localStorage.setItem(KEY, JSON.stringify(state))
-  } catch (e) {
-    console.warn('Trekov: could not persist state', e)
-  }
-}
-
 function set(next) {
   state = next
-  persist()
+  try { localStorage.setItem(KEY, JSON.stringify(state)) }
+  catch (e) { console.warn('Trekov: could not persist state', e) }
   listeners.forEach((l) => l())
 }
 
 const subscribe = (l) => { listeners.add(l); return () => listeners.delete(l) }
-const snapshot = () => state
 
 export function useStore(selector = (s) => s) {
-  return useSyncExternalStore(subscribe, () => selector(snapshot()), () => selector(snapshot()))
+  return useSyncExternalStore(subscribe, () => selector(state), () => selector(state))
 }
 
-/* ---------------------------------- reads --------------------------------- */
+/* --------------------------------- reads ---------------------------------- */
 
 export const meId = ME
 export const getUser = (id) => state.users[id] ?? { id, name: 'Traveller', handle: id, avatar: '' }
+export const getPlace = (id) => state.places[id]
+export const getPost = (id) => state.posts.find((p) => p.id === id)
 
-// Selectors derive new arrays, so they must be memoised: useSyncExternalStore
-// compares snapshots by identity and would otherwise re-render forever.
-// `state` only changes identity inside set(), which makes it a sound cache key.
+// Selectors build new arrays, so they must be memoised: useSyncExternalStore
+// compares snapshots by identity. `state` only changes identity inside set(),
+// which makes it a sound cache key.
 function memo(fn) {
   let lastState, lastArg, lastResult, primed = false
   return (s, arg) => {
@@ -84,92 +84,157 @@ function memo(fn) {
   }
 }
 
-export const selectFeed = memo((s) =>
-  [...s.posts].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)))
+const newest = (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
 
-export const selectSaved = memo((s) =>
-  s.savedOrder.map((id) => s.posts.find((p) => p.id === id)).filter(Boolean))
-
-export const selectMine = memo((s) => s.posts.filter((p) => p.authorId === ME))
-
-export const selectSearch = memo((s, q) => {
-  const term = (q ?? '').trim().toLowerCase()
-  if (!term) return selectFeed(s)
-  return selectFeed(s).filter((p) =>
-    [p.place.name, p.place.region, p.place.country, p.caption, ...p.tags]
-      .join(' ').toLowerCase().includes(term))
+/** Every place, with the numbers the map markers need. */
+export const selectPlaces = memo((s) => {
+  const byPlace = new Map()
+  for (const post of s.posts) {
+    if (!byPlace.has(post.placeId)) byPlace.set(post.placeId, [])
+    byPlace.get(post.placeId).push(post)
+  }
+  return Object.values(s.places).map((place) => {
+    const posts = (byPlace.get(place.id) ?? []).sort(newest)
+    return {
+      ...place,
+      postCount: posts.length,
+      cover: posts[0]?.media ?? null,
+      latestAt: posts[0]?.createdAt ?? null,
+      saved: s.savedPlaces.includes(place.id),
+    }
+  })
 })
 
-/** Distinct tags across the feed, most used first. */
-export const selectTags = memo((s) => {
-  const counts = new Map()
-  s.posts.forEach((p) => p.tags.forEach((t) => counts.set(t, (counts.get(t) ?? 0) + 1)))
-  return [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([t]) => t)
+export const selectPlace = memo((s, id) => selectPlaces(s).find((p) => p.id === id) ?? null)
+
+/** Posts at one place, most recent first. */
+export const selectPostsAt = memo((s, placeId) =>
+  s.posts.filter((p) => p.placeId === placeId).sort(newest))
+
+export const selectSavedPlaces = memo((s) =>
+  s.savedPlaces.map((id) => selectPlaces(s).find((p) => p.id === id)).filter(Boolean))
+
+export const selectMyPosts = memo((s) => s.posts.filter((p) => p.authorId === ME).sort(newest))
+
+export const selectTrips = memo((s) => s.trips)
+export const selectTrip = memo((s, id) => s.trips.find((t) => t.id === id) ?? null)
+
+export const selectPlaceSearch = memo((s, q) => {
+  const term = (q ?? '').trim().toLowerCase()
+  const all = selectPlaces(s)
+  if (!term) return all
+  return all.filter((p) =>
+    `${p.name} ${p.region} ${p.country} ${p.blurb ?? ''}`.toLowerCase().includes(term))
 })
 
 /* --------------------------------- writes --------------------------------- */
 
-const mapPost = (id, fn) => state.posts.map((p) => (p.id === id ? fn(p) : p))
-
-export function toggleLike(id) {
+export function toggleLike(postId) {
   set({
     ...state,
-    posts: mapPost(id, (p) => ({
-      ...p,
-      likedByMe: !p.likedByMe,
-      likes: p.likes + (p.likedByMe ? -1 : 1),
-    })),
+    posts: state.posts.map((p) =>
+      p.id === postId
+        ? { ...p, likedByMe: !p.likedByMe, likes: p.likes + (p.likedByMe ? -1 : 1) }
+        : p),
   })
 }
 
-/** The core action: put a place on your to-visit list. */
-export function toggleSave(id) {
-  const post = state.posts.find((p) => p.id === id)
-  if (!post) return
-  const nowSaved = !post.saved
-  set({
-    ...state,
-    posts: mapPost(id, (p) => ({ ...p, saved: nowSaved })),
-    savedOrder: nowSaved
-      ? [id, ...state.savedOrder.filter((x) => x !== id)]
-      : state.savedOrder.filter((x) => x !== id),
-  })
-  return nowSaved
-}
-
-export function addComment(id, text) {
+export function addComment(postId, text) {
   const body = text.trim()
   if (!body) return
   const comment = { id: `c_${Date.now()}`, userId: ME, text: body, createdAt: new Date().toISOString() }
-  set({ ...state, posts: mapPost(id, (p) => ({ ...p, comments: [...p.comments, comment] })) })
+  set({
+    ...state,
+    posts: state.posts.map((p) => (p.id === postId ? { ...p, comments: [...p.comments, comment] } : p)),
+  })
 }
 
-export async function createPost({ file, place, caption, tags, bestTime }) {
+/** The core action: put a place on your To Visit list. */
+export function toggleSavePlace(placeId) {
+  const saved = state.savedPlaces.includes(placeId)
+  set({
+    ...state,
+    savedPlaces: saved
+      ? state.savedPlaces.filter((id) => id !== placeId)
+      : [placeId, ...state.savedPlaces],
+  })
+  return !saved
+}
+
+export function upsertPlace(place) {
+  const id = place.id ?? `pl_${Date.now()}`
+  set({ ...state, places: { ...state.places, [id]: { ...place, id } } })
+  return id
+}
+
+export async function createPost({ file, placeId, caption, tags }) {
   const id = `p_${Date.now()}`
-  const media = { type: file.type.startsWith('video') ? 'video' : 'image', src: '', blobKey: id }
   await putBlob(id, file)
   set({
     ...state,
-    posts: [
-      {
-        id, authorId: ME, createdAt: new Date().toISOString(), media,
-        place, caption, tags, bestTime,
-        likes: 0, likedByMe: false, saved: false, comments: [],
-      },
-      ...state.posts,
-    ],
+    posts: [{
+      id, placeId, authorId: ME, createdAt: new Date().toISOString(),
+      media: { type: file.type.startsWith('video') ? 'video' : 'image', src: '', blobKey: id },
+      caption, tags, likes: 0, likedByMe: false, comments: [],
+    }, ...state.posts],
   })
   return id
 }
 
 export async function deletePost(id) {
-  const post = state.posts.find((p) => p.id === id)
+  const post = getPost(id)
   if (post?.media.blobKey) await delBlob(post.media.blobKey).catch(() => {})
-  set({
-    ...state,
-    posts: state.posts.filter((p) => p.id !== id),
-    savedOrder: state.savedOrder.filter((x) => x !== id),
+  set({ ...state, posts: state.posts.filter((p) => p.id !== id) })
+}
+
+/* ---------------------------------- trips --------------------------------- */
+
+export function createTrip({ title, start = '', end = '', stops = [], notes = '' }) {
+  const trip = { id: `t_${Date.now()}`, title: title.trim() || 'Untitled trip', start, end, notes, stops }
+  set({ ...state, trips: [trip, ...state.trips] })
+  return trip.id
+}
+
+const patchTrip = (id, fn) => set({ ...state, trips: state.trips.map((t) => (t.id === id ? fn(t) : t)) })
+
+export const updateTrip = (id, patch) => patchTrip(id, (t) => ({ ...t, ...patch }))
+export const deleteTrip = (id) => set({ ...state, trips: state.trips.filter((t) => t.id !== id) })
+
+export function addStop(tripId, placeId) {
+  patchTrip(tripId, (t) =>
+    t.stops.some((s) => s.placeId === placeId) ? t : { ...t, stops: [...t.stops, { placeId, note: '' }] })
+}
+
+export const removeStop = (tripId, placeId) =>
+  patchTrip(tripId, (t) => ({ ...t, stops: t.stops.filter((s) => s.placeId !== placeId) }))
+
+export const setStopNote = (tripId, placeId, note) =>
+  patchTrip(tripId, (t) => ({
+    ...t, stops: t.stops.map((s) => (s.placeId === placeId ? { ...s, note } : s)),
+  }))
+
+/** Move a stop up or down the itinerary. */
+export function moveStop(tripId, index, delta) {
+  patchTrip(tripId, (t) => {
+    const to = index + delta
+    if (to < 0 || to >= t.stops.length) return t
+    const stops = [...t.stops]
+    ;[stops[index], stops[to]] = [stops[to], stops[index]]
+    return { ...t, stops }
   })
+}
+
+/** Adopt a trip that arrived over a share link. */
+export function importTrip(trip) {
+  const places = { ...state.places }
+  for (const p of trip.places ?? []) if (!places[p.id]) places[p.id] = p
+  const copy = {
+    id: `t_${Date.now()}`,
+    title: trip.title, start: trip.start ?? '', end: trip.end ?? '', notes: trip.notes ?? '',
+    stops: (trip.stops ?? []).filter((s) => places[s.placeId]),
+  }
+  set({ ...state, places, trips: [copy, ...state.trips] })
+  return copy.id
 }
 
 export function updateProfile(patch) {
