@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { selectPlaceSearch, selectPlaces, useStore } from '../lib/store'
 import { createMap, preferredMapType, rememberMapType } from '../lib/mapDrivers'
+import { searchAnywhere } from '../lib/geocode'
 import { SearchIcon, Wordmark } from './Icons'
 
 const INDIA = [22.6, 79.0]
@@ -53,6 +54,10 @@ export default function MapView({ onOpenPlace }) {
   const [q, setQ] = useState('')
   const [mapType, setMapType] = useState(preferredMapType)
   const [traffic, setTraffic] = useState(false)
+  // Anywhere in the world, not only the places Trekov already knows.
+  const [world, setWorld] = useState([])
+  const [searching, setSearching] = useState(false)
+  const dropped = useRef(null)
 
   const places = useStore(selectPlaces)
   const matches = useStore((s) => selectPlaceSearch(s, q))
@@ -90,10 +95,39 @@ export default function MapView({ onOpenPlace }) {
     })
   }, [places, zoom, onOpenPlace, engine])
 
+  // Debounced: typing fires a lot of lookups and geocoding is billed per call.
+  useEffect(() => {
+    const term = q.trim()
+    if (term.length < 3) { setWorld([]); setSearching(false); return }
+    setSearching(true)
+    const timer = setTimeout(() => {
+      const centre = drv.current?.getCenter?.()
+      searchAnywhere(term, { near: centre ? { lat: centre[0], lng: centre[1] } : undefined })
+        .then((hits) => { setWorld(hits); setSearching(false) })
+    }, 400)
+    return () => clearTimeout(timer)
+  }, [q])
+
   function goTo(place) {
     setQ('')
+    setWorld([])
+    dropped.current?.remove()
+    dropped.current = null
     drv.current?.flyTo([place.lat, place.lng], 9)
     onOpenPlace(place.id)
+  }
+
+  /** Fly to a geocoded result and mark it. It is not a Trekov place yet. */
+  function goToWorld(hit) {
+    setQ('')
+    setWorld([])
+    dropped.current?.remove()
+    dropped.current = drv.current?.htmlMarker(
+      [hit.lat, hit.lng],
+      `<div class="tk-drop"><i></i><u>${esc(hit.name)}</u></div>`,
+      { size: [30, 40], anchor: [15, 36], zIndex: 400 },
+    )
+    drv.current?.flyTo([hit.lat, hit.lng], 13)
   }
 
   const types = drv.current?.mapTypes() ?? []
@@ -120,7 +154,14 @@ export default function MapView({ onOpenPlace }) {
 
         {q && (
           <ul className="mt-2 max-h-72 overflow-y-auto rounded-2xl border border-line bg-surface shadow-xl divide-y divide-line">
-            {matches.length === 0 && <li className="px-4 py-4 text-sm text-mist">No place matches “{q}”.</li>}
+            {matches.length === 0 && world.length === 0 && (
+              <li className="px-4 py-4 text-sm text-mist">
+                {searching ? 'Searching…' : `Nothing found for “${q}”.`}
+              </li>
+            )}
+            {matches.length > 0 && (
+              <li className="px-4 pt-2.5 pb-1 text-[10px] uppercase tracking-[0.14em] text-mist">On Trekov</li>
+            )}
             {matches.map((p) => (
               <li key={p.id}>
                 <button onClick={() => goTo(p)} className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-raised">
@@ -132,6 +173,29 @@ export default function MapView({ onOpenPlace }) {
                 </button>
               </li>
             ))}
+
+            {world.length > 0 && (
+              <li className="px-4 pt-3 pb-1 text-[10px] uppercase tracking-[0.14em] text-mist">
+                Elsewhere on the map
+              </li>
+            )}
+            {world.map((hit) => (
+              <li key={hit.id}>
+                <button onClick={() => goToWorld(hit)}
+                        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-raised">
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-medium truncate">{hit.name}</span>
+                    <span className="block text-xs text-mist truncate">{hit.detail}</span>
+                  </span>
+                  <span className="text-[11px] text-mist shrink-0">Go</span>
+                </button>
+              </li>
+            ))}
+            {world.length > 0 && (
+              <li className="px-4 pb-3 pt-1 text-[11px] text-mist leading-relaxed">
+                Not on Trekov yet — take a photo there to put it on the map.
+              </li>
+            )}
           </ul>
         )}
 

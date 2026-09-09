@@ -1,18 +1,13 @@
+import { supabase } from './supabase'
+
 // Live location sharing between everyone on the same trip.
 //
-// Real multi-device presence needs a server. Rather than pretend otherwise,
-// the transport is pluggable and ships with a BroadcastChannel implementation:
-// it genuinely works across tabs and windows on one machine, which is enough
-// to build and test the whole UI against.
-//
-// To go multi-device, implement this interface and pass it to joinParty:
+// Two transports behind one interface: Supabase Realtime when a project is
+// configured (genuinely multi-device), BroadcastChannel otherwise (cross-tab
+// on one machine). The local one is not dead code — it keeps group navigation
+// demonstrable with no account and no network.
 //
 //   { join(room, onMessage) -> leave(), send(message) }
-//
-// A Supabase Realtime adapter is about fifteen lines:
-//   const ch = supabase.channel(`trip:${room}`)
-//   ch.on('broadcast', { event: 'pos' }, ({ payload }) => onMessage(payload))
-//   ch.subscribe();  send = (m) => ch.send({ type: 'broadcast', event: 'pos', payload: m })
 
 const STALE_MS = 60_000   // drop a member we have not heard from in a minute
 const BEAT_MS = 5_000     // and re-announce ourselves this often
@@ -32,6 +27,27 @@ export function broadcastTransport() {
   }
 }
 
+/** Multi-device presence over Supabase Realtime. */
+export function realtimeTransport(supabase) {
+  let channel = null
+  return {
+    join(room, onMessage) {
+      channel = supabase.channel(`trip:${room}`, { config: { broadcast: { self: false } } })
+      channel
+        .on('broadcast', { event: 'pos' }, ({ payload }) => onMessage(payload))
+        .on('broadcast', { event: 'leave' }, ({ payload }) => onMessage(payload))
+        .subscribe()
+      return () => { supabase.removeChannel(channel); channel = null }
+    },
+    send(message) {
+      // Realtime send is async and can reject while the socket reconnects;
+      // a dropped position update is not worth surfacing to the traveller.
+      channel?.send({ type: 'broadcast', event: message.type === 'leave' ? 'leave' : 'pos', payload: message })
+        ?.catch?.(() => {})
+    },
+  }
+}
+
 const COLOURS = ['#00C08B', '#FFB33E', '#FF5C7A', '#5AA9FF', '#C77DFF', '#3DDC97']
 export const colourFor = (id) => {
   let h = 0
@@ -47,7 +63,8 @@ export const colourFor = (id) => {
  * @param onMembers called with the current member list whenever it changes
  * @returns { update(position), leave() }
  */
-export function joinParty(tripId, me, onMembers, transport = broadcastTransport()) {
+export function joinParty(tripId, me, onMembers, transport) {
+  transport = transport ?? defaultTransport()
   const members = new Map()
   let mine = null
 
@@ -78,8 +95,13 @@ export function joinParty(tripId, me, onMembers, transport = broadcastTransport(
   const beat = setInterval(() => { if (mine) transport.send(mine); prune() }, BEAT_MS)
 
   return {
-    update(position) {
-      mine = { type: 'pos', id: me.id, name: me.name, lat: position.lat, lng: position.lng, hello: !mine }
+    update(position, look = {}) {
+      mine = {
+        type: 'pos', id: me.id, name: me.name,
+        lat: position.lat, lng: position.lng,
+        vehicle: look.vehicle, colour: look.colour, heading: look.heading,
+        hello: !mine,
+      }
       transport.send(mine)
       mine = { ...mine, hello: false }
     },
@@ -89,4 +111,9 @@ export function joinParty(tripId, me, onMembers, transport = broadcastTransport(
       leaveTransport()
     },
   }
+}
+
+/** Realtime when a project is configured, cross-tab otherwise. */
+export function defaultTransport() {
+  return supabase ? realtimeTransport(supabase) : broadcastTransport()
 }

@@ -20,6 +20,9 @@ chronological timeline.
 
 | Screen | Behaviour |
 |---|---|
+| **Search** | Trekov's own places first, then anywhere in the world via the Geocoding API — a geocoded hit flies there and drops a pin, but only becomes a place once someone photographs it |
+| **Group trips** | Companions share live position over Supabase Realtime; each appears as their own vehicle, in their colour, pointing the way they are driving, with their name above it |
+| **Multi-stop routing** | A trip routes through every remaining stop with per-leg distance, duration and arrival time |
 | **Map** | Satellite map with a marker per place, thumbnail and photo count. Markers cluster at low zoom and split as you zoom in. Search flies to a place. |
 | **Place sheet** | Tap a marker: blurb, best season, Maps link, the featured banner (newest photo, credited), every earlier photo beneath it, Save place, Add to trip |
 | **Photo** | Full view with author, caption, tags, like and comments |

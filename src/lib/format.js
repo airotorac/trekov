@@ -25,3 +25,18 @@ export const formatDateTime = (iso) =>
     day: 'numeric', month: 'short', year: 'numeric',
     hour: 'numeric', minute: '2-digit',
   })
+
+/**
+ * Arrival clock time, with the day when it is not today.
+ *
+ * A multi-day itinerary shows several arrivals; bare HH:MM makes a stop two
+ * days out look earlier than one arriving tonight.
+ */
+export function arrivalAt(secondsFromNow) {
+  const when = new Date(Date.now() + secondsFromNow * 1000)
+  const time = when.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+  const days = Math.round((when.setHours(0, 0, 0, 0) - new Date().setHours(0, 0, 0, 0)) / 864e5)
+  if (days === 0) return time
+  if (days === 1) return `${time} tomorrow`
+  return `${time} +${days}d`
+}

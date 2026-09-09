@@ -142,10 +142,44 @@ body {
   .tk-speed { display: none; }
 }
 
-/* Other travellers on the same trip. */
-.tk-party { position: relative; width: 18px; height: 18px; display: grid; place-items: center; }
-.tk-party i { display: block; width: 14px; height: 14px; border-radius: 50%; border: 2.5px solid #0B0F0E; box-shadow: 0 0 0 1.5px #fff, 0 3px 8px rgba(0,0,0,.6); }
-.tk-party b { position: absolute; bottom: 20px; left: 50%; translate: -50% 0; white-space: nowrap; font-size: 10px; font-weight: 600; text-shadow: 0 1px 4px rgba(0,0,0,.95); }
+/* Companions on a group trip: their vehicle, their colour, their name.
+   The name stays upright while the vehicle rotates to their heading. */
+.tk-mate { position: relative; width: 38px; height: 38px; display: grid; place-items: center; }
+.tk-mate-car { display: block; transform: rotate(var(--rot, 0deg)); transition: transform .35s ease-out; }
+.tk-mate-car svg { filter: drop-shadow(0 2px 5px rgba(0,0,0,.7)); }
+.tk-mate-name {
+  position: absolute; bottom: 34px; left: 50%; translate: -50% 0;
+  white-space: nowrap; font-size: 10px; font-weight: 700; color: #EEF3F1;
+  background: rgba(11,15,14,.8); border-radius: 999px; padding: 1px 6px;
+  text-shadow: 0 1px 3px rgba(0,0,0,.9);
+}
 
 /* Google's own chrome, kept out of the way of ours. */
 .gm-style .gmnoprint a, .gm-style .gm-style-cc { font-size: 9px !important; }
+
+/* Numbered markers for the other stops on a multi-stop trip. */
+.tk-stop { position: relative; display: grid; place-items: center; width: 30px; height: 30px; }
+.tk-stop b {
+  width: 26px; height: 26px; border-radius: 50%;
+  background: #0B0F0E; border: 2px solid #00C08B; color: #EEF3F1;
+  font-size: 12px; font-weight: 700; display: grid; place-items: center;
+  box-shadow: 0 4px 10px rgba(0,0,0,.6);
+}
+.tk-stop u {
+  position: absolute; top: 30px; left: 50%; translate: -50% 0;
+  white-space: nowrap; font-size: 10px; font-weight: 600; text-decoration: none;
+  color: #EEF3F1; text-shadow: 0 1px 4px rgba(0,0,0,.95);
+}
+
+/* A geocoded search result: somewhere real, not yet a Trekov place. */
+.tk-drop { position: relative; width: 30px; height: 40px; display: grid; place-items: start center; }
+.tk-drop i {
+  width: 16px; height: 16px; border-radius: 50% 50% 50% 0; rotate: -45deg;
+  background: #FFB33E; border: 2px solid #0B0F0E;
+  box-shadow: 0 4px 10px rgba(0,0,0,.6);
+}
+.tk-drop u {
+  position: absolute; top: 22px; left: 50%; translate: -50% 0;
+  white-space: nowrap; font-size: 10px; font-weight: 600; text-decoration: none;
+  color: #EEF3F1; text-shadow: 0 1px 4px rgba(0,0,0,.95);
+}

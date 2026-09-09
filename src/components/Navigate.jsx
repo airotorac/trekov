@@ -1,10 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { bearing, compassPoint, distance, distanceAlongRemaining, formatDistance, formatDuration, snapToPath } from '../lib/geo'
-import { getRoute, instruction } from '../lib/route'
+import {
+  bearing, compassPoint, distance, distanceAlongRemaining, formatDistance, formatDuration, snapToPath,
+} from '../lib/geo'
+import { arrivalAt } from '../lib/format'
+import { getRoute, getTripRoute, instruction } from '../lib/route'
 import { colourFor, joinParty } from '../lib/party'
 import { downloadTiles, tilesForRoute } from '../lib/offline'
 import { createMap } from '../lib/mapDrivers'
 import { COLOURS, vehicleSvg } from '../lib/vehicleArt'
+import { getPlace } from '../lib/store'
 import { BackIcon, CalendarIcon, Logo } from './Icons'
 import { VEHICLES } from './VehicleIcons'
 import Portal from './Portal'
@@ -54,6 +58,16 @@ export default function Navigate({ place, trip, me, onClose }) {
   // Vehicle and colour live behind the vehicle button rather than on the bar.
   const [picker, setPicker] = useState(false)
   const [view3d, setView3d] = useState(() => pref('trekov.view3d', '0') === '1')
+
+  // In a trip we route through every remaining stop; the "destination" is
+  // simply the next one, so the existing single-place path still applies.
+  const tripStops = useMemo(() => {
+    if (!trip?.stops?.length) return null
+    const places = trip.stops.map((st) => getPlace(st.placeId)).filter(Boolean)
+    const from = places.findIndex((p) => p.id === place.id)
+    const remaining = from >= 0 ? places.slice(from) : places
+    return remaining.length > 1 ? remaining : null
+  }, [trip, place.id])
 
   const dest = useMemo(() => ({ lat: place.lat, lng: place.lng }), [place.lat, place.lng])
   const bearingToDest = pos ? bearing(pos, dest) : null
@@ -162,6 +176,18 @@ export default function Navigate({ place, trip, me, onClose }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dest])
 
+  // Numbered markers for the other stops on a multi-stop trip.
+  useEffect(() => {
+    const d = drv.current
+    if (!d || !tripStops) return
+    const markers = tripStops.slice(1).map((p, i) => d.htmlMarker(
+      [p.lat, p.lng],
+      `<div class="tk-stop"><b>${i + 2}</b><u>${esc(p.name)}</u></div>`,
+      { size: [30, 30], zIndex: 500 },
+    ))
+    return () => markers.forEach((m) => m.remove())
+  }, [tripStops, engine])
+
   // Route line. Deliberately no fitBounds: a 600km route would zoom the map
   // out to the whole country, and on a laptop the next GPS fix that would
   // zoom it back in may never come. Overview is a button instead.
@@ -248,12 +274,15 @@ export default function Navigate({ place, trip, me, onClose }) {
     if (!pos || routeState !== 'idle') return
     setRouteState('loading')
     const id = ++fetchSeq.current
-    getRoute(pos, dest, vehicle).then((r) => {
+    const ask = tripStops
+      ? getTripRoute(pos, tripStops.map((p) => ({ lat: p.lat, lng: p.lng })), vehicle)
+      : getRoute(pos, dest, vehicle)
+    ask.then((r) => {
       if (id !== fetchSeq.current) return
       setRoute(r)
       setRouteState(r ? 'ready' : 'none')
     })
-  }, [pos, dest, vehicle, routeState])
+  }, [pos, dest, vehicle, routeState, tripStops])
 
   /* --------------------------------------------------------------- party */
   useEffect(() => {
@@ -262,23 +291,31 @@ export default function Navigate({ place, trip, me, onClose }) {
     return () => { partyRef.current?.leave(); partyRef.current = null }
   }, [trip, me])
 
-  useEffect(() => { if (pos && partyRef.current) partyRef.current.update(pos) }, [pos])
+  // Companions see the vehicle you actually chose, pointing the way you drive.
+  useEffect(() => {
+    if (shown && partyRef.current) partyRef.current.update(shown, { vehicle, colour, heading: course })
+  }, [shown, vehicle, colour, course])
 
   useEffect(() => {
     const d = drv.current
     if (!d) return
     partyMarkers.current.forEach((m) => m.remove())
-    partyMarkers.current = members.map((m) => {
-      const c = colourFor(m.id)
-      return d.htmlMarker([m.lat, m.lng],
-        `<div class="tk-party"><b style="color:${c}">${esc(m.name)}</b><i style="background:${c}"></i></div>`,
-        { size: [18, 18], zIndex: 900 })
-    })
+    partyMarkers.current = members.map((m) => d.htmlMarker(
+      [m.lat, m.lng],
+      `<div class="tk-mate" style="--rot:${m.heading ?? 0}deg">
+         <span class="tk-mate-name">${esc(m.name)}</span>
+         <span class="tk-mate-car">${vehicleSvg(m.vehicle ?? 'car', { colour: m.colour ?? 'green', size: 34, id: `mate-${m.id}` })}</span>
+       </div>`,
+      { size: [38, 38], zIndex: 900 },
+    ))
   }, [members, engine])
 
   /* ---------------------------------------------------------- derivation */
   const straight = pos ? distance(pos, dest) : null
-  const remaining = snap && route ? distanceAlongRemaining(route.coordinates, snap) ?? straight : straight
+  const remainingRaw = snap && route ? distanceAlongRemaining(route.coordinates, snap) ?? straight : straight
+  // Starting off-route adds the hop back onto it, which can read as more
+  // distance left than the route is long. Never show that.
+  const remaining = route && remainingRaw != null ? Math.min(remainingRaw, route.distance) : remainingRaw
   const offRoute = snap != null && !onRoute && snap.distance > 150
 
   const nextStep = useMemo(() => {
@@ -488,6 +525,39 @@ export default function Navigate({ place, trip, me, onClose }) {
 
             {expanded && (
               <div className="px-3 pb-3 space-y-3 max-h-[42vh] overflow-y-auto border-t border-line pt-3">
+                {tripStops && route?.legs?.length > 0 && (
+                  <div>
+                    <p className="text-[10px] uppercase tracking-[0.14em] text-mist mb-2">
+                      {trip.title} · {route.legs.length} stop{route.legs.length === 1 ? '' : 's'} left
+                    </p>
+                    <ol className="space-y-1.5">
+                      {route.legs.map((leg, i) => {
+                        const stop = tripStops[i]
+                        if (!stop) return null
+
+                        return (
+                          <li key={stop.id} className="flex items-center gap-2.5 rounded-xl bg-surface border border-line px-2.5 py-2">
+                            <span className="grid place-items-center size-6 rounded-full bg-brand/15 text-brand
+                                             text-[10px] font-bold shrink-0 tabular-nums">{i + 1}</span>
+                            <span className="min-w-0 flex-1">
+                              <span className="block text-sm font-medium truncate">{stop.name}</span>
+                              <span className="block text-[11px] text-mist truncate">
+                                {formatDistance(leg.distance)} · {formatDuration(leg.duration)}
+                                {leg.inTraffic ? ' in traffic' : ''}
+                              </span>
+                            </span>
+                            <span className="text-right shrink-0">
+                              <span className="block text-xs font-semibold tabular-nums">
+                                {arrivalAt(leg.cumulative)}
+                              </span>
+                              <span className="block text-[10px] text-mist">arrive</span>
+                            </span>
+                          </li>
+                        )
+                      })}
+                    </ol>
+                  </div>
+                )}
                 {route && (
                   <div className="grid grid-cols-3 gap-2 text-center">
                     {[

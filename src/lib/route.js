@@ -141,3 +141,84 @@ export function instruction(step) {
     default:         return `Continue${dir}${road}`
   }
 }
+
+/**
+ * A route through every remaining stop of a trip, in order.
+ *
+ * Google returns one leg per hop, which is exactly what the itinerary panel
+ * needs — per-destination distance and ETA, and a cumulative arrival time.
+ * OSRM's demo server has no waypoint support worth relying on, so without a
+ * Google key this falls back to routing each hop separately.
+ */
+export async function getTripRoute(origin, stops, mode = 'car') {
+  if (!stops?.length) return null
+  const key = `trip|${mode}|${origin.lat.toFixed(3)},${origin.lng.toFixed(3)}|` +
+              stops.map((s) => `${s.lat.toFixed(3)},${s.lng.toFixed(3)}`).join(';')
+  const cache = readCache()
+  const hit = cache[key]
+  if (!navigator.onLine) return hit ? { ...hit, cached: true, stale: true } : null
+
+  try {
+    let route
+    try {
+      const gm = await loadGoogleMaps()
+      const svc = new gm.DirectionsService()
+      const res = await svc.route({
+        origin,
+        destination: stops.at(-1),
+        waypoints: stops.slice(0, -1).map((s) => ({ location: s, stopover: true })),
+        travelMode: TRAVEL[mode] ?? 'DRIVING',
+        ...(mode === 'car'
+          ? { drivingOptions: { departureTime: new Date(), trafficModel: 'BEST_GUESS' } }
+          : {}),
+      })
+      const r = res.routes?.[0]
+      if (!r?.legs?.length) throw new Error('no route')
+      let cumulative = 0
+      route = {
+        at: Date.now(), via: 'google', mode,
+        coordinates: r.overview_path.map((p) => [p.lat(), p.lng()]),
+        legs: r.legs.map((leg, i) => {
+          const seconds = leg.duration_in_traffic?.value ?? leg.duration.value
+          cumulative += seconds
+          return {
+            index: i,
+            distance: leg.distance.value,
+            duration: seconds,
+            cumulative,
+            inTraffic: Boolean(leg.duration_in_traffic),
+          }
+        }),
+        steps: (r.legs[0]?.steps ?? []).map((st) => ({
+          text: stripHtml(st.instructions), name: '', distance: st.distance.value,
+          type: st.maneuver || '', modifier: '',
+          lat: st.start_location.lat(), lng: st.start_location.lng(),
+        })),
+      }
+    } catch (e) {
+      console.info('Trekov: waypoint routing unavailable —', e.message)
+      // One hop at a time, chained: slower and no traffic, but honest numbers.
+      const coordinates = []
+      const legs = []
+      let from = origin
+      let cumulative = 0
+      for (const [i, stop] of stops.entries()) {
+        const hop = await osrmRoute(from, stop, mode)
+        coordinates.push(...hop.coordinates)
+        cumulative += hop.duration
+        legs.push({ index: i, distance: hop.distance, duration: hop.duration, cumulative, inTraffic: false })
+        from = stop
+      }
+      route = { at: Date.now(), via: 'osrm', mode, coordinates, legs, steps: [] }
+    }
+
+    route.distance = route.legs.reduce((n, l) => n + l.distance, 0)
+    route.duration = route.legs.reduce((n, l) => n + l.duration, 0)
+    cache[key] = route
+    writeCache(cache)
+    return { ...route, cached: false, stale: false }
+  } catch (e) {
+    console.warn('Trekov: trip routing failed', e)
+    return hit ? { ...hit, cached: true, stale: true } : null
+  }
+}
