@@ -25,7 +25,9 @@ chronological timeline.
 | **Photo** | Full view with author, caption, tags, like and comments |
 | **Trips** | Create a trip, add stops from the map, reorder them, per-stop notes, dates, trip notes, delete |
 | **Share** | A trip encodes into a link. Opening it shows the itinerary and offers to save it — no backend, no account |
-| **To Visit** | Saved places grouped by country, with season and Maps link |
+| **Discover** | Attraction of the month, most-visited ranking, recently-added places and the alert feed |
+| **Reviews** | Rate a place on view, cleanliness, ease of access, safety and facilities, plus practical facts (best way in, food, water, camping) shown under every photo |
+| **Trips** | Your To Visit shortlist, trips built from it, and the transport and stays for each |
 | **Navigate** | In-app turn-by-turn to any place: live GPS, route line, next instruction, distance and ETA, off-route warning, and a bearing compass that works with no network |
 | **Offline** | Service worker keeps the app openable with no connection; "Save map offline" caches satellite tiles along the route; routes are cached and replay offline |
 | **Travelling together** | Everyone navigating the same trip sees each other live on the map with distance apart |
@@ -131,6 +133,35 @@ which is the only way to actually rule out gallery uploads — `capture` on a
 file input is a hint that desktop browsers ignore. This needs a secure context,
 so it works on trekov.com and localhost but not over plain http on a LAN IP.
 Front-camera captures are un-mirrored on the way to the canvas.
+
+## Discovery, reviews and bookings
+
+**Most visited** ranks by how many *different people* have photographed a
+place. Photos can only be taken in the app, at the place, so a distinct
+photographer is the nearest thing to a verified visit — far more honest than
+counting saves, which are only intent.
+
+**Attraction of the month** is the place with the most photos posted inside the
+current calendar month, tie-broken on likes, falling back to the most
+photographed overall when the month is still empty. Deterministic, and it
+rotates on its own.
+
+**New places** are announced through `lib/notify.js`, which has the same
+pluggable transport as `party.js` and the same honest limit: BroadcastChannel
+reaches other tabs on this machine, not other people's phones. A backend (or
+web-push, for delivery when the app is closed) makes it real; nothing above
+that layer changes.
+
+**Reviews** are one per person per place, scored on five categories, plus
+practical facts — best way in, food nearby, drinking water, camping. Facts are
+single-choice, so a place's answer is simply what most people reported, shown
+as "3 of 4 agree" rather than a bare yes.
+
+**Bookings** record transport and stays against a trip and link out to each
+provider's public search. There is deliberately **no live inventory and no
+price we invented**: no partner APIs exist yet, so the app tracks what you
+booked elsewhere. When partnerships land, `SEARCH` in `Bookings.jsx` becomes an
+API call per provider and the rest of the component is unchanged.
 
 ## Navigation, offline and live sharing
 

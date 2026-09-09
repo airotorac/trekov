@@ -86,3 +86,29 @@ const byId = (id) => POSTS.find((p) => p.id === id)
 ;(byId('p6') ?? POSTS[1]).comments = [
   { id: 'c3', userId: 'u_aria', text: 'Adding this immediately.', createdAt: daysAgo(4) },
 ]
+
+// A few seeded opinions so ratings are not blank on a first run.
+// [placeId, userId, view, cleanliness, access, safety, facilities, note, facts]
+const RAW_REVIEWS = [
+  ['pangong',    'u_dev',   5, 4, 2, 4, 2, 'Unreal water. Bring layers, the wind is relentless.', ['car','limited','carry','permit']],
+  ['pangong',    'u_mei',   5, 3, 2, 4, 2, 'Toilets are basic at best. Worth it anyway.', ['car','limited','carry','permit']],
+  ['gurez',      'u_aria',  5, 5, 2, 3, 2, 'Almost nobody here. Carry cash.', ['car','limited','carry','yes']],
+  ['kutch',      'u_tara',  5, 4, 4, 4, 3, 'Go on a full moon. The tent city has real facilities.', ['car','plenty','available','permit']],
+  ['munnar',     'u_kabir', 4, 4, 5, 5, 4, 'Easy roads, plenty of stays. Crowded on weekends.', ['car','plenty','available','no']],
+  ['alleppey',   'u_tara',  4, 3, 5, 4, 4, 'Water is not clean near the main jetty.', ['public','plenty','available','no']],
+  ['key',        'u_mei',   5, 4, 3, 4, 2, 'Stay the night if they let you.', ['bike','limited','carry','permit']],
+  ['hampi',      'u_dev',   5, 4, 4, 4, 3, 'Cycle everywhere. Bring your own water.', ['bike','plenty','carry','yes']],
+  ['gurudongmar','u_kabir', 5, 5, 1, 3, 1, 'Permits and altitude are the whole difficulty.', ['4x4','none','carry','no']],
+  ['radhanagar', 'u_aria',  5, 4, 4, 5, 4, 'Cleanest beach I have seen in India.', ['public','plenty','available','no']],
+  ['jaisalmer',  'u_dev',   4, 3, 5, 4, 4, 'The fort is crowded and worth it at sunrise.', ['car','plenty','available','no']],
+  ['nohkalikai', 'u_mei',   5, 4, 3, 3, 2, 'Viewpoint railing is solid. Expect rain.', ['car','limited','carry','no']],
+]
+
+export const SEED_REVIEWS = RAW_REVIEWS.map(([placeId, userId, view, cleanliness, access, safety, facilities, note, facts = []], i) => ({
+  id: `sr_${i}`,
+  placeId, userId,
+  ratings: { view, cleanliness, access, safety, facilities },
+  facts: { transport: facts[0], food: facts[1], water: facts[2], camping: facts[3] },
+  note,
+  createdAt: daysAgo(i + 2),
+}))

@@ -1,17 +1,19 @@
 import { useState } from 'react'
 import {
   selectPlace, selectLatestAt, selectOthersAt, selectTrips, addStop, createTrip, getUser,
-  meId, toggleSavePlace, useStore,
+  meId, RATING_CATEGORIES, selectRatingsAt, toggleSavePlace, useStore,
 } from '../lib/store'
-import { compact, formatDateTime, mapsUrl, timeAgo } from '../lib/format'
+import { ago, compact, formatDateTime, mapsUrl } from '../lib/format'
 import { CalendarIcon, CloseIcon, NavIcon, PlusIcon, SaveIcon } from './Icons'
 import Media from './Media'
 import Portal from './Portal'
 import PhotoViewer from './PhotoViewer'
+import ReviewSheet from './ReviewSheet'
 
 /** What you get when you tap a place on the map: its photos, newest first. */
 export default function PlaceSheet({ placeId, onClose, onNavigate }) {
   const [openPost, setOpenPost] = useState(null)
+  const [rating, setRating] = useState(false)
   const [tripMenu, setTripMenu] = useState(false)
   const [toast, setToast] = useState('')
 
@@ -19,6 +21,7 @@ export default function PlaceSheet({ placeId, onClose, onNavigate }) {
   // The newest photo holds the banner; the rest are listed beneath it.
   const post = useStore((s) => selectLatestAt(s, placeId))
   const others = useStore((s) => selectOthersAt(s, placeId))
+  const ratings = useStore((s) => selectRatingsAt(s, placeId))
   const trips = useStore(selectTrips)
 
   if (!place) return null
@@ -97,6 +100,38 @@ export default function PlaceSheet({ placeId, onClose, onNavigate }) {
               </button>
             </div>
 
+            <button onClick={() => setRating(true)}
+                    className="mt-2 w-full rounded-2xl border border-line hover:border-brand/60 transition p-3 text-left">
+              {ratings ? (
+                <>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-lg font-semibold tabular-nums">{ratings.overall.toFixed(1)}</span>
+                    <span className="text-xs text-mist">/ 5 · {ratings.count} review{ratings.count === 1 ? '' : 's'}</span>
+                    <span className="ml-auto text-xs text-brand font-semibold">Rate it</span>
+                  </div>
+                  <div className="mt-2 space-y-1">
+                    {RATING_CATEGORIES.filter((c) => ratings.byCategory[c.id] != null).map((c) => (
+                      <div key={c.id} className="flex items-center gap-2">
+                        <span className="text-[11px] text-mist w-24 shrink-0">{c.label}</span>
+                        <span className="h-1.5 flex-1 rounded-full bg-raised overflow-hidden">
+                          <span className="block h-full bg-brand"
+                                style={{ width: `${(ratings.byCategory[c.id] / 5) * 100}%` }} />
+                        </span>
+                        <span className="text-[11px] text-mist tabular-nums w-7 text-right">
+                          {ratings.byCategory[c.id].toFixed(1)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <span className="flex items-center justify-between">
+                  <span className="text-sm text-mist">No ratings yet</span>
+                  <span className="text-xs text-brand font-semibold">Be the first to rate</span>
+                </span>
+              )}
+            </button>
+
             {tripMenu && (
               <ul className="mt-2 rounded-2xl border border-line bg-surface divide-y divide-line overflow-hidden">
                 {trips.map((t) => (
@@ -137,7 +172,7 @@ export default function PlaceSheet({ placeId, onClose, onNavigate }) {
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-semibold truncate leading-tight">@{getUser(post.authorId).handle}</p>
                       <p className="text-xs text-mist truncate">
-                        {formatDateTime(post.createdAt)} · {timeAgo(post.createdAt)} ago
+                        {formatDateTime(post.createdAt)} · {ago(post.createdAt)}
                       </p>
                     </div>
                     <span className="text-xs text-mist shrink-0">♥ {compact(post.likes)}</span>
@@ -193,6 +228,7 @@ export default function PlaceSheet({ placeId, onClose, onNavigate }) {
         </div>
 
         {openPost && <PhotoViewer postId={openPost} onClose={() => setOpenPost(null)} />}
+        {rating && <ReviewSheet place={place} onClose={() => setRating(false)} />}
       </div>
     </Portal>
   )

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { createPost, selectPlaceSearch, upsertPlace, useStore } from '../lib/store'
+import { createPost, getPlace, meId, selectPlaceSearch, upsertPlace, useStore } from '../lib/store'
 import { CameraIcon, CloseIcon, Logo, SearchIcon } from './Icons'
 import Camera from './Camera'
 import PinMap from './PinMap'
@@ -7,7 +7,7 @@ import Portal from './Portal'
 
 const field = 'w-full bg-raised rounded-xl px-3.5 py-2.5 text-sm outline-none placeholder:text-mist focus:ring-2 focus:ring-brand/50'
 
-export default function Composer({ onClose, onPosted }) {
+export default function Composer({ onClose, onPosted, onNewPlace }) {
   const [file, setFile] = useState(null)
   const [preview, setPreview] = useState('')
   const [shooting, setShooting] = useState(true)   // open straight into the camera
@@ -39,6 +39,7 @@ export default function Composer({ onClose, onPosted }) {
     if (!ready || busy) return
     setBusy(true)
     try {
+      let announced = null
       const id = mode === 'existing'
         ? placeId
         : upsertPlace({
@@ -46,10 +47,13 @@ export default function Composer({ onClose, onPosted }) {
             country: fresh.country.trim() || 'Elsewhere',
             lat: fresh.lat, lng: fresh.lng, bestTime: fresh.bestTime.trim(), blurb: '',
           })
+      if (mode === 'new') announced = id
       await createPost({
         file, placeId: id, caption: caption.trim(),
         tags: tags.split(',').map((t) => t.trim().replace(/^#/, '')).filter(Boolean),
       })
+      // Announce only genuinely new places — not every photo.
+      if (announced) onNewPlace?.(getPlace(announced), meId)
       onPosted(id)
     } catch (err) {
       console.error(err)

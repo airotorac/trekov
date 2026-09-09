@@ -1,14 +1,16 @@
 import { CompassIcon, PlusIcon, RouteIcon, SaveIcon, UserIcon } from './Icons'
 
+// To Visit moved inside Trips: saving a place and planning the trip you save
+// it for are the same job, and six tabs does not fit a phone.
 const TABS = [
-  { id: 'map',     label: 'Map',      Icon: CompassIcon },
-  { id: 'trips',   label: 'Trips',    Icon: RouteIcon },
-  { id: 'post',    label: 'Post',     Icon: PlusIcon, primary: true },
-  { id: 'saved',   label: 'To Visit', Icon: SaveIcon },
-  { id: 'profile', label: 'You',      Icon: UserIcon },
+  { id: 'map',      label: 'Map',      Icon: CompassIcon },
+  { id: 'discover', label: 'Discover', Icon: SaveIcon },
+  { id: 'post',     label: 'Post',     Icon: PlusIcon, primary: true },
+  { id: 'trips',    label: 'Trips',    Icon: RouteIcon },
+  { id: 'profile',  label: 'You',      Icon: UserIcon },
 ]
 
-export default function TabBar({ tab, onChange, savedCount }) {
+export default function TabBar({ tab, onChange, savedCount, unread }) {
   return (
     <nav className="shrink-0 flex items-stretch border-t border-line bg-ink/90 backdrop-blur-xl
                     pb-[env(safe-area-inset-bottom)]">
@@ -29,8 +31,11 @@ export default function TabBar({ tab, onChange, savedCount }) {
                   className={`relative flex-1 flex flex-col items-center gap-1 py-2.5 text-[10px] transition
                               ${active ? 'text-brand' : 'text-mist hover:text-white'}`}>
             <span className="relative">
-              <Icon size={23} filled={active && id === 'saved'} />
-              {id === 'saved' && savedCount > 0 && (
+              <Icon size={23} filled={active && id === 'discover'} />
+              {id === 'discover' && unread > 0 && (
+                <span className="absolute -top-1 -right-2 size-2.5 rounded-full bg-rose" />
+              )}
+              {id === 'trips' && savedCount > 0 && (
                 <span className="absolute -top-1 -right-2 min-w-4 h-4 px-1 rounded-full bg-brand text-ink
                                  text-[9px] font-bold grid place-items-center tabular-nums">{savedCount}</span>
               )}

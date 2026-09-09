@@ -9,7 +9,7 @@
 // so a real backend replaces this module alone.
 
 import { useSyncExternalStore } from 'react'
-import { PLACES, POSTS, USERS } from './seed'
+import { PLACES, POSTS, SEED_REVIEWS, USERS } from './seed'
 import { putBlob, delBlob } from './media'
 
 const KEY = 'trekov.state.v2'
@@ -21,7 +21,12 @@ function initial() {
     places: Object.fromEntries(PLACES.map((p) => [p.id, p])),
     posts: POSTS.map((p) => ({ ...p, likedByMe: false })),
     savedPlaces: [],   // place ids, newest first
-    trips: [],         // { id, title, start, end, notes, stops: [{ placeId, note }] }
+    // { id, title, start, end, notes, stops: [{ placeId, note }],
+    //   bookings: [{ id, kind, mode, provider, ref, from, to, start, end, cost, url, notes }] }
+    trips: [],
+    notifications: [], // { id, type, placeId, by, at, read }
+    // One review per person per place: { id, placeId, userId, ratings, note, createdAt }
+    reviews: SEED_REVIEWS,
     profile: { name: 'You', handle: 'you', bio: 'Collecting places, one at a time.', avatar: USERS.u_me.avatar },
   }
 }
@@ -35,10 +40,20 @@ function load() {
     // up, without touching anything the user made.
     const seenPosts = new Set(saved.posts.map((p) => p.id))
     const seedById = new Map(POSTS.map((p) => [p.id, p]))
+    // Seeded reviews gained `facts` after some installs had already saved them,
+    // so refresh seed rows from the seed and keep the user's own untouched.
+    const seedReviews = new Map(SEED_REVIEWS.map((r) => [r.id, r]))
+    const savedReviews = saved.reviews ?? []
+    const seenReviews = new Set(savedReviews.map((r) => r.id))
+    const reviews = [
+      ...savedReviews.map((r) => seedReviews.get(r.id) ?? r),
+      ...SEED_REVIEWS.filter((r) => !seenReviews.has(r.id)),
+    ]
     return {
       ...base,
       ...saved,
       places: { ...base.places, ...saved.places },
+      reviews,
       posts: ([
         ...saved.posts.map((p) => (seedById.has(p.id) ? { ...p, media: seedById.get(p.id).media } : p)),
         ...POSTS.filter((p) => !seenPosts.has(p.id)).map((p) => ({ ...p, likedByMe: false })),
@@ -132,8 +147,179 @@ export const selectSavedPlaces = memo((s) =>
 
 export const selectMyPosts = memo((s) => s.posts.filter((p) => p.authorId === ME).sort(newest))
 
+/**
+ * Most visited: ranked by how many *different people* have photographed a
+ * place. Photos can only be taken in the app, at the place, so a distinct
+ * photographer is the closest thing to a verified visit we have — far more
+ * honest than counting saves, which are just intent.
+ */
+export const selectMostVisited = memo((s) => {
+  const visitors = new Map()
+  for (const post of s.posts) {
+    if (!visitors.has(post.placeId)) visitors.set(post.placeId, new Set())
+    visitors.get(post.placeId).add(post.authorId)
+  }
+  return selectPlaces(s)
+    .map((p) => ({ ...p, visitors: visitors.get(p.id)?.size ?? 0 }))
+    .filter((p) => p.visitors > 0)
+    .sort((a, b) => b.visitors - a.visitors || b.postCount - a.postCount)
+})
+
+/**
+ * Attraction of the month: most activity inside the current calendar month —
+ * photos posted, then saves, then likes as a tie-break. Deterministic, and it
+ * rotates on its own as the month turns.
+ */
+export const selectAttractionOfMonth = memo((s) => {
+  const now = new Date()
+  const sameMonth = (iso) => {
+    const d = new Date(iso)
+    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
+  }
+  const scored = selectPlaces(s).map((place) => {
+    const posts = s.posts.filter((p) => p.placeId === place.id)
+    const thisMonth = posts.filter((p) => sameMonth(p.createdAt))
+    return {
+      ...place,
+      monthPhotos: thisMonth.length,
+      monthLikes: thisMonth.reduce((n, p) => n + p.likes, 0),
+      saved: s.savedPlaces.includes(place.id),
+    }
+  })
+  const ranked = scored
+    .filter((p) => p.monthPhotos > 0)
+    .sort((a, b) => b.monthPhotos - a.monthPhotos || b.monthLikes - a.monthLikes)
+  // Nothing shot this month yet: fall back to the most photographed overall
+  // rather than showing an empty slot.
+  return ranked[0] ?? selectMostVisited(s)[0] ?? null
+})
+
+/** Places added recently, newest first — what the "new place" alerts point at. */
+export const selectNewPlaces = memo((s) =>
+  Object.values(s.places)
+    .filter((p) => p.addedAt)
+    .sort((a, b) => new Date(b.addedAt) - new Date(a.addedAt))
+    .slice(0, 12)
+    .map((p) => selectPlaces(s).find((x) => x.id === p.id) ?? p))
+
+export const selectNotifications = memo((s) =>
+  [...s.notifications].sort((a, b) => new Date(b.at) - new Date(a.at)).slice(0, 40))
+
+export const selectUnreadCount = memo((s) => s.notifications.filter((n) => !n.read).length)
+
+/* -------------------------------- reviews --------------------------------- */
+
+/** What a place is rated on. Order is the display order. */
+export const RATING_CATEGORIES = [
+  { id: 'view',        label: 'View' },
+  { id: 'cleanliness', label: 'Cleanliness' },
+  { id: 'access',      label: 'Easy to visit' },
+  { id: 'safety',      label: 'Safety' },
+  { id: 'facilities',  label: 'Facilities' },
+]
+
+/**
+ * Practical facts travellers report about a place, alongside their ratings.
+ * Each is a single choice, so the place's answer is simply what most people
+ * reported — with the count shown, because "3 of 4 say" is honest and "yes"
+ * on its own is not.
+ */
+export const FACT_FIELDS = [
+  {
+    id: 'transport', label: 'Best way in',
+    options: [
+      ['car', 'Car'], ['bike', 'Bike'], ['4x4', '4x4 only'],
+      ['public', 'Bus / train'], ['trek', 'On foot'],
+    ],
+  },
+  {
+    id: 'food', label: 'Food nearby',
+    options: [['plenty', 'Plenty'], ['limited', 'Limited'], ['none', 'None — carry it']],
+  },
+  {
+    id: 'water', label: 'Drinking water',
+    options: [['available', 'Available'], ['carry', 'Carry your own']],
+  },
+  {
+    id: 'camping', label: 'Camping',
+    options: [['yes', 'Allowed'], ['permit', 'With a permit'], ['no', 'Not allowed']],
+  },
+]
+
+/** Majority answer per fact, with how many agreed out of how many reported. */
+export const selectFactsAt = memo((s, placeId) => {
+  const reviews = s.reviews.filter((r) => r.placeId === placeId)
+  const out = {}
+  for (const field of FACT_FIELDS) {
+    const answers = reviews.map((r) => r.facts?.[field.id]).filter(Boolean)
+    if (!answers.length) continue
+    const tally = answers.reduce((acc, a) => ({ ...acc, [a]: (acc[a] ?? 0) + 1 }), {})
+    const [value, agree] = Object.entries(tally).sort((a, b) => b[1] - a[1])[0]
+    out[field.id] = {
+      value,
+      label: field.options.find(([id]) => id === value)?.[1] ?? value,
+      agree,
+      of: answers.length,
+    }
+  }
+  return Object.keys(out).length ? out : null
+})
+
+export const selectReviewsAt = memo((s, placeId) =>
+  s.reviews.filter((r) => r.placeId === placeId)
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)))
+
+export const selectMyReviewAt = memo((s, placeId) =>
+  s.reviews.find((r) => r.placeId === placeId && r.userId === ME) ?? null)
+
+/** Per-category averages and an overall, or null when nobody has rated it. */
+export const selectRatingsAt = memo((s, placeId) => {
+  const reviews = selectReviewsAt(s, placeId)
+  if (!reviews.length) return null
+  const byCategory = {}
+  for (const { id } of RATING_CATEGORIES) {
+    const scores = reviews.map((r) => r.ratings?.[id]).filter((n) => typeof n === 'number')
+    if (scores.length) byCategory[id] = scores.reduce((a, b) => a + b, 0) / scores.length
+  }
+  const all = Object.values(byCategory)
+  return {
+    count: reviews.length,
+    byCategory,
+    overall: all.length ? all.reduce((a, b) => a + b, 0) / all.length : null,
+  }
+})
+
+/** Write or replace your review of a place — one per person, per place. */
+export function upsertReview(placeId, { ratings, note, facts }) {
+  const existing = state.reviews.find((r) => r.placeId === placeId && r.userId === ME)
+  const review = {
+    id: existing?.id ?? `r_${Date.now()}`,
+    placeId, userId: ME,
+    ratings: { ...existing?.ratings, ...ratings },
+    facts: { ...existing?.facts, ...facts },
+    note: note ?? existing?.note ?? '',
+    createdAt: new Date().toISOString(),
+  }
+  set({
+    ...state,
+    reviews: existing
+      ? state.reviews.map((r) => (r.id === existing.id ? review : r))
+      : [review, ...state.reviews],
+  })
+  return review.id
+}
+
+export function removeReview(reviewId) {
+  set({ ...state, reviews: state.reviews.filter((r) => r.id !== reviewId) })
+}
+
 export const selectTrips = memo((s) => s.trips)
 export const selectTrip = memo((s, id) => s.trips.find((t) => t.id === id) ?? null)
+
+// Must be memoised: `?? []` hands back a fresh array on every call, and
+// useSyncExternalStore compares snapshots by identity — unmemoised it
+// re-renders forever.
+export const selectBookings = memo((s, tripId) => s.trips.find((t) => t.id === tripId)?.bookings ?? [])
 
 export const selectPlaceSearch = memo((s, q) => {
   const term = (q ?? '').trim().toLowerCase()
@@ -179,9 +365,65 @@ export function toggleSavePlace(placeId) {
 
 export function upsertPlace(place) {
   const id = place.id ?? `pl_${Date.now()}`
-  set({ ...state, places: { ...state.places, [id]: { ...place, id } } })
+  const existing = state.places[id]
+  set({
+    ...state,
+    places: {
+      ...state.places,
+      [id]: {
+        ...place,
+        id,
+        // Provenance, so "new places" can be listed and announced.
+        addedAt: existing?.addedAt ?? new Date().toISOString(),
+        addedBy: existing?.addedBy ?? ME,
+      },
+    },
+  })
   return id
 }
+
+/* ----------------------------- notifications ------------------------------ */
+
+/** Record an announcement locally. `incoming` marks one that arrived from elsewhere. */
+export function addNotification({ type, placeId, by, at, id }, { incoming = false } = {}) {
+  const note = {
+    id: id ?? `n_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+    type, placeId, by,
+    at: at ?? new Date().toISOString(),
+    // Your own actions are not news to you.
+    read: !incoming,
+  }
+  if (state.notifications.some((n) => n.id === note.id)) return note
+  set({ ...state, notifications: [note, ...state.notifications].slice(0, 60) })
+  return note
+}
+
+export function markNotificationsRead() {
+  if (!state.notifications.some((n) => !n.read)) return
+  set({ ...state, notifications: state.notifications.map((n) => ({ ...n, read: true })) })
+}
+
+/** Adopt a place announced by someone else so their alert resolves to something. */
+export function adoptPlace(place) {
+  if (!place?.id || state.places[place.id]) return
+  set({ ...state, places: { ...state.places, [place.id]: place } })
+}
+
+/* -------------------------------- bookings -------------------------------- */
+
+export function addBooking(tripId, booking) {
+  const entry = { id: `b_${Date.now()}`, ...booking }
+  patchTrip(tripId, (t) => ({ ...t, bookings: [...(t.bookings ?? []), entry] }))
+  return entry.id
+}
+
+export const updateBooking = (tripId, bookingId, patch) =>
+  patchTrip(tripId, (t) => ({
+    ...t, bookings: (t.bookings ?? []).map((b) => (b.id === bookingId ? { ...b, ...patch } : b)),
+  }))
+
+export const removeBooking = (tripId, bookingId) =>
+  patchTrip(tripId, (t) => ({ ...t, bookings: (t.bookings ?? []).filter((b) => b.id !== bookingId) }))
 
 /**
  * Post a photo to a place. The newest photo takes the place's banner; earlier
@@ -211,7 +453,7 @@ export async function deletePost(id) {
 /* ---------------------------------- trips --------------------------------- */
 
 export function createTrip({ title, start = '', end = '', stops = [], notes = '' }) {
-  const trip = { id: `t_${Date.now()}`, title: title.trim() || 'Untitled trip', start, end, notes, stops }
+  const trip = { id: `t_${Date.now()}`, title: title.trim() || 'Untitled trip', start, end, notes, stops, bookings: [] }
   set({ ...state, trips: [trip, ...state.trips] })
   return trip.id
 }
@@ -253,6 +495,7 @@ export function importTrip(trip) {
     id: `t_${Date.now()}`,
     title: trip.title, start: trip.start ?? '', end: trip.end ?? '', notes: trip.notes ?? '',
     stops: (trip.stops ?? []).filter((s) => places[s.placeId]),
+    bookings: [],
   }
   set({ ...state, places, trips: [copy, ...state.trips] })
   return copy.id

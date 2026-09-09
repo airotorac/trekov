@@ -1,17 +1,21 @@
-import { useEffect, useMemo, useState } from 'react'
-import { getPlace, importTrip, selectSavedPlaces, selectTrip, useStore } from './lib/store'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import {
+  addNotification, adoptPlace, getPlace, importTrip, selectSavedPlaces, selectTrip,
+  selectUnreadCount, useStore,
+} from './lib/store'
 import { decodeTripFromHash } from './lib/share'
+import { NEW_PLACE, broadcastTransport } from './lib/notify'
 import Composer from './components/Composer'
+import Discover from './components/Discover'
 import MapView from './components/MapView'
 import Navigate from './components/Navigate'
 import PlaceSheet from './components/PlaceSheet'
 import Profile from './components/Profile'
-import Saved from './components/Saved'
 import SharedTrip from './components/SharedTrip'
 import TabBar from './components/TabBar'
 import Trips from './components/Trips'
 
-const TABS = ['map', 'trips', 'saved', 'profile']
+const TABS = ['map', 'discover', 'trips', 'profile']
 const readHash = () => {
   const h = window.location.hash.replace('#', '')
   return TABS.includes(h) ? h : 'map'
@@ -28,6 +32,8 @@ export default function App() {
   const [incoming, setIncoming] = useState(() => decodeTripFromHash())
 
   const savedCount = useStore(selectSavedPlaces).length
+  const unread = useStore(selectUnreadCount)
+  const notifier = useRef(null)
   const profile = useStore((s) => s.profile)
   const navTrip = useStore((s) => (nav?.tripId ? selectTrip(s, nav.tripId) : null))
 
@@ -56,6 +62,27 @@ export default function App() {
     return () => window.removeEventListener('hashchange', sync)
   }, [])
 
+  // Announcements of new places. Cross-tab today; the same interface reaches
+  // every user once there is a backend behind it.
+  useEffect(() => {
+    const transport = broadcastTransport()
+    const leave = transport.join((msg) => {
+      if (msg?.type !== NEW_PLACE || !msg.place) return
+      adoptPlace(msg.place)
+      addNotification(
+        { id: msg.id, type: NEW_PLACE, placeId: msg.place.id, by: msg.by, at: msg.at },
+        { incoming: true },
+      )
+    })
+    notifier.current = transport
+    return () => { leave(); notifier.current = null }
+  }, [])
+
+  function announcePlace(place, by) {
+    const note = addNotification({ type: NEW_PLACE, placeId: place.id, by })
+    notifier.current?.send({ type: NEW_PLACE, id: note.id, place, by, at: note.at })
+  }
+
   function go(next) {
     if (next === 'post') return setComposing(true)
     window.location.hash = next
@@ -76,8 +103,8 @@ export default function App() {
 
   const screens = {
     map: <MapView onOpenPlace={setPlace} />,
+    discover: <Discover onOpenPlace={setPlace} onNavigate={startNavigation} />,
     trips: <Trips onOpenPlace={setPlace} open={openTrip} onOpen={setOpenTrip} onNavigate={startNavigation} />,
-    saved: <Saved onExplore={() => go('map')} onOpenPlace={setPlace} onNavigate={startNavigation} />,
     profile: <Profile onPost={() => setComposing(true)} />,
   }
 
@@ -88,7 +115,7 @@ export default function App() {
         <main className={`flex-1 min-h-0 ${tab === 'map' ? '' : 'overflow-y-auto'}`}>
           {screens[tab]}
         </main>
-        <TabBar tab={tab} onChange={go} savedCount={savedCount} />
+        <TabBar tab={tab} onChange={go} savedCount={savedCount} unread={unread} />
       </div>
 
       {place && (
@@ -108,6 +135,7 @@ export default function App() {
         <Composer
           onClose={() => setComposing(false)}
           onPosted={(placeId) => { setComposing(false); setPlace(placeId) }}
+          onNewPlace={announcePlace}
         />
       )}
 

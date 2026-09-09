@@ -1,5 +1,7 @@
 import { useState } from 'react'
-import { addComment, getPlace, getUser, toggleLike, useStore } from '../lib/store'
+import {
+  addComment, FACT_FIELDS, getPlace, getUser, selectFactsAt, toggleLike, useStore,
+} from '../lib/store'
 import { compact, timeAgo } from '../lib/format'
 import { CloseIcon, CommentIcon, HeartIcon, Logo, SendIcon } from './Icons'
 import Media from './Media'
@@ -10,6 +12,7 @@ export default function PhotoViewer({ postId, onClose }) {
   const post = useStore((s) => s.posts.find((p) => p.id === postId))
   const [text, setText] = useState('')
   const [burst, setBurst] = useState(false)
+  const facts = useStore((s) => (post ? selectFactsAt(s, post.placeId) : null))
 
   if (!post) return null
   const author = getUser(post.authorId)
@@ -51,6 +54,34 @@ export default function PhotoViewer({ postId, onClose }) {
               </p>
             )}
             <p className="text-[15px] leading-snug text-white/90">{post.caption}</p>
+
+            {/* What you actually need to know before going, reported by the
+                people who went. Counts are shown because "3 of 4 say" is
+                honest where a bare "yes" is not. */}
+            <div className="rounded-2xl border border-line bg-surface p-3">
+              <p className="text-[10px] uppercase tracking-[0.14em] text-mist mb-2">Before you go</p>
+              {!facts ? (
+                <p className="text-xs text-mist">
+                  Nobody has reported the practicalities here yet — rate the place to add them.
+                </p>
+              ) : (
+                <ul className="grid grid-cols-2 gap-2">
+                  {FACT_FIELDS.filter((f) => facts[f.id]).map((f) => {
+                    const hit = facts[f.id]
+                    const warn = ['none', 'carry', 'no', '4x4'].includes(hit.value)
+                    return (
+                      <li key={f.id} className="rounded-xl bg-raised px-2.5 py-2">
+                        <p className="text-[10px] uppercase tracking-[0.1em] text-mist">{f.label}</p>
+                        <p className={`text-sm font-semibold leading-tight ${warn ? 'text-sun' : 'text-white'}`}>
+                          {hit.label}
+                        </p>
+                        <p className="text-[10px] text-mist tabular-nums">{hit.agree} of {hit.of} agree</p>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+            </div>
             <div className="flex flex-wrap gap-2 text-xs text-mist">
               {post.tags.map((t) => <span key={t}>#{t}</span>)}
             </div>

@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { createTrip, getPlace, selectTrips, useStore } from '../lib/store'
-import { PlusIcon } from './Icons'
+import { createTrip, getPlace, selectSavedPlaces, selectTrips, toggleSavePlace, useStore } from '../lib/store'
+import { CalendarIcon, CloseIcon, Logo, NavIcon, PlusIcon } from './Icons'
 import Media from './Media'
 import TripDetail from './TripDetail'
 
@@ -9,6 +9,7 @@ const dateRange = (t) =>
 
 export default function Trips({ onOpenPlace, open, onOpen, onNavigate }) {
   const trips = useStore(selectTrips)
+  const saved = useStore(selectSavedPlaces)
   const [title, setTitle] = useState('')
   const [adding, setAdding] = useState(false)
 
@@ -47,8 +48,45 @@ export default function Trips({ onOpenPlace, open, onOpen, onNavigate }) {
         </form>
       )}
 
+      {/* To Visit lives here: the shortlist and the trips built from it. */}
+      {saved.length > 0 && (
+        <section className="px-4 pt-4">
+          <h2 className="text-xs uppercase tracking-[0.14em] text-mist mb-2">
+            To Visit · {saved.length}
+          </h2>
+          <ul className="flex gap-2 overflow-x-auto no-bar pb-1">
+            {saved.map((p) => (
+              <li key={p.id} className="shrink-0 w-36">
+                <div className="bg-surface border border-line rounded-2xl overflow-hidden">
+                  <button onClick={() => onOpenPlace(p.id)} className="block w-full text-left">
+                    {p.cover
+                      ? <Media media={p.cover} alt={p.name} className="w-full h-20 object-cover" />
+                      : <span className="grid place-items-center w-full h-20 bg-raised"><Logo size={18} /></span>}
+                    <span className="block px-2.5 pt-2">
+                      <span className="block text-xs font-semibold truncate">{p.name}</span>
+                      <span className="block text-[10px] text-mist truncate">{p.region}</span>
+                    </span>
+                  </button>
+                  <div className="flex items-center gap-1 px-2.5 pb-2 pt-1.5">
+                    {p.bestTime && (
+                      <span className="inline-flex items-center gap-1 text-[9px] text-sun/90 bg-sun/10 rounded-full px-1.5 py-0.5">
+                        <CalendarIcon size={9} /> {p.bestTime}
+                      </span>
+                    )}
+                    <button onClick={() => onNavigate?.(p.id)} aria-label={`Navigate to ${p.name}`}
+                            className="ml-auto text-brand"><NavIcon size={13} filled /></button>
+                    <button onClick={() => toggleSavePlace(p.id)} aria-label={`Remove ${p.name}`}
+                            className="text-mist hover:text-rose"><CloseIcon size={13} /></button>
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       {trips.length === 0 ? (
-        <div className="text-center px-10 py-24 space-y-3">
+        <div className="text-center px-10 py-16 space-y-3">
           <h2 className="text-lg font-semibold">No trips yet</h2>
           <p className="text-sm text-mist leading-relaxed">
             A trip is an ordered list of places with your notes on each one. Build it from

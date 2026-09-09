@@ -5,6 +5,7 @@ import {
 import { encodeTrip, shareLink } from '../lib/share'
 import { mapsUrl } from '../lib/format'
 import { BackIcon, CalendarIcon, CloseIcon, SendIcon } from './Icons'
+import Bookings from './Bookings'
 
 const MSG = {
   shared: 'Shared.',
@@ -123,6 +124,8 @@ export default function TripDetail({ trip, onBack, onOpenPlace, onNavigate }) {
             ))}
           </ol>
         )}
+
+        <Bookings trip={trip} destination={stops.at(-1)?.place?.name ?? ''} />
 
         <button
           onClick={() => confirm(`Delete “${trip.title}”?`) && (deleteTrip(trip.id), onBack())}
