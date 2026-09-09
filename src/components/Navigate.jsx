@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { bearing, compassPoint, distance, formatDistance, formatDuration } from '../lib/geo'
+import { bearing, compassPoint, distance, distanceAlongRemaining, formatDistance, formatDuration, snapToPath } from '../lib/geo'
 import { getRoute, instruction } from '../lib/route'
 import { colourFor, joinParty } from '../lib/party'
 import { downloadTiles, tilesForRoute } from '../lib/offline'
@@ -11,27 +11,13 @@ import Portal from './Portal'
 
 /** Street level. Esri imagery tops out at 18; 17 keeps a block of context. */
 const NAV_ZOOM = 17
+/** Beyond this the GPS is genuinely off-route, not just noisy. */
+const SNAP_M = 60
 const PIN_HTML = '<div class="tk-pin"><div class="tk-pin-img"></div></div>'
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
 
 const pref = (key, fallback) => localStorage.getItem(key) ?? fallback
-
-/** Nearest point on the route to the user, used for "distance remaining". */
-function remainingAlong(coords, here) {
-  if (!coords?.length) return null
-  let best = 0
-  let bestD = Infinity
-  for (let i = 0; i < coords.length; i++) {
-    const d = distance(here, { lat: coords[i][0], lng: coords[i][1] })
-    if (d < bestD) { bestD = d; best = i }
-  }
-  let left = bestD
-  for (let i = best; i < coords.length - 1; i++) {
-    left += distance({ lat: coords[i][0], lng: coords[i][1] }, { lat: coords[i + 1][0], lng: coords[i + 1][1] })
-  }
-  return { left, offRoute: bestD > 150 }
-}
 
 export default function Navigate({ place, trip, me, onClose }) {
   const host = useRef(null)
@@ -71,6 +57,16 @@ export default function Navigate({ place, trip, me, onClose }) {
   const dest = useMemo(() => ({ lat: place.lat, lng: place.lng }), [place.lat, place.lng])
   const bearingToDest = pos ? bearing(pos, dest) : null
 
+  // Map-matching: ride the route line rather than the raw fix. Consumer GPS is
+  // routinely tens of metres out, which otherwise parks the vehicle in the
+  // buildings beside the road.
+  const snap = pos && route?.coordinates?.length ? snapToPath(route.coordinates, pos) : null
+  const onRoute = snap != null && snap.distance <= SNAP_M
+  const shown = onRoute ? { lat: snap.lat, lng: snap.lng } : pos
+  // A segment's own direction is far steadier than one derived from
+  // consecutive fixes, so prefer it while we are on the road.
+  const course = (onRoute ? snap.bearing : heading) ?? bearingToDest ?? 0
+
   /* --------------------------------------------------------- preferences */
   useEffect(() => { localStorage.setItem('trekov.vehicle', vehicle) }, [vehicle])
   useEffect(() => { localStorage.setItem('trekov.vehicleColour', colour) }, [colour])
@@ -78,8 +74,16 @@ export default function Navigate({ place, trip, me, onClose }) {
   useEffect(() => { localStorage.setItem('trekov.traffic', traffic ? '1' : '0'); drv.current?.setTraffic(traffic) }, [traffic, engine])
   useEffect(() => {
     localStorage.setItem('trekov.view3d', view3d ? '1' : '0')
-    drv.current?.setTilt(view3d ? 45 : 0)
-    if (!view3d) drv.current?.setHeading(0)
+    const apply = () => {
+      drv.current?.setTilt(view3d ? 45 : 0)
+      if (!view3d) drv.current?.setHeading(0)
+    }
+    apply()
+    // A tilt set in the same tick the map is created is swallowed while the
+    // vector renderer is still warming up, so 3D silently stayed flat until
+    // the user toggled it. Re-apply once the map has settled.
+    const t = setTimeout(apply, 600)
+    return () => clearTimeout(t)
   }, [view3d, engine])
 
   /* ------------------------------------------------------------ position */
@@ -184,8 +188,7 @@ export default function Navigate({ place, trip, me, onClose }) {
   // way we are moving. Rotation lives on the outer node, motion on the inner.
   useEffect(() => {
     const d = drv.current
-    if (!d || !pos) return
-    const course = heading ?? bearingToDest ?? 0
+    if (!d || !shown) return
     // In 3D the map itself rotates to your heading, so the vehicle stays
     // pointing up the screen; in 2D the map is north-up and the vehicle turns.
     const rotate = view3d ? 0 : course
@@ -205,9 +208,9 @@ export default function Navigate({ place, trip, me, onClose }) {
                     </div>
                   </div>`
     if (!meMarker.current) {
-      meMarker.current = d.htmlMarker([pos.lat, pos.lng], html, { size: [44, 44], zIndex: 1000 })
+      meMarker.current = d.htmlMarker([shown.lat, shown.lng], html, { size: [44, 44], zIndex: 1000 })
     } else {
-      meMarker.current.setLatLng([pos.lat, pos.lng])
+      meMarker.current.setLatLng([shown.lat, shown.lng])
       meMarker.current.setHtml(html)
     }
     if (follow) {
@@ -215,9 +218,9 @@ export default function Navigate({ place, trip, me, onClose }) {
       resetZoom.current = false
       // Dead centre: the vehicle is the fixed point and the map moves under
       // it, so it never drifts off while you are driving.
-      d.setView([pos.lat, pos.lng], z)
+      d.setView([shown.lat, shown.lng], z)
     }
-  }, [pos, follow, heading, vehicle, colour, bearingToDest, moving, engine, view3d])
+  }, [shown, course, follow, vehicle, colour, moving, engine, view3d])
 
   /* --------------------------------------------------------------- route */
   // The route depends on the vehicle (Google serves bikes differently), so a
@@ -264,8 +267,8 @@ export default function Navigate({ place, trip, me, onClose }) {
 
   /* ---------------------------------------------------------- derivation */
   const straight = pos ? distance(pos, dest) : null
-  const progress = pos && route ? remainingAlong(route.coordinates, pos) : null
-  const remaining = progress?.left ?? straight
+  const remaining = snap && route ? distanceAlongRemaining(route.coordinates, snap) ?? straight : straight
+  const offRoute = snap != null && !onRoute && snap.distance > 150
 
   const nextStep = useMemo(() => {
     if (!pos || !route?.steps?.length) return null
@@ -354,7 +357,7 @@ export default function Navigate({ place, trip, me, onClose }) {
                   <p className="text-xs text-mist mt-0.5">in {formatDistance(nextStep.away)}</p>
                 </div>
               )}
-              {progress?.offRoute && (
+              {offRoute && (
                 <p className="rounded-xl bg-rose/20 backdrop-blur-xl border border-rose/40 text-rose text-xs px-3 py-2">
                   You're more than 150 m off the route.
                 </p>

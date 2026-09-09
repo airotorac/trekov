@@ -176,13 +176,22 @@ except to hide Google-only controls.
    Vite inlines it at build time, so it ships in the bundle — which is fine for
    a referrer-restricted browser key, and why the restriction matters.
 
+**Map matching.** The vehicle is snapped to the nearest point on the route
+(`snapToPath` in `lib/geo.js`, projecting onto each segment rather than to the
+nearest vertex) whenever it is within 60 m. Consumer GPS is routinely tens of
+metres out, which otherwise parks the vehicle in the buildings beside the road.
+The snapped segment's own bearing also drives the heading — far steadier than
+one derived from consecutive fixes. Past 150 m it stops pretending and warns
+that you are off-route.
+
 **3D view.** The navigation screen has a 2D/3D toggle that tilts the map to 45°
 and rotates it to your heading (in 3D the vehicle stays pointing up the screen
 and the map turns underneath; in 2D the map is north-up and the vehicle turns).
 
-With only an API key, Google serves *raster* tiles, whose 45° imagery exists
-for a limited set of cities — so outside those the tilt quietly does nothing.
-For real 3D everywhere, create a **Map ID** (Google Cloud → Google Maps
+Verified: with only an API key Google serves *raster* tiles and the map stays
+flat — `setTilt(45)` is accepted and `getTilt()` reads back 45, but nothing
+renders, because raster tilt needs 45° aerial imagery that most cities lack.
+Tilt and heading only render on vector maps. Create a **Map ID** (Google Cloud → Google Maps
 Platform → Map management → Create Map ID, type **JavaScript**, rendering
 **Vector**, with tilt and rotation enabled) and set `VITE_GOOGLE_MAPS_MAP_ID`.
 The driver switches to vector rendering automatically and `supports3D()` starts
