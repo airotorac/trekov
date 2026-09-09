@@ -1,9 +1,11 @@
+import { useState } from 'react'
 import { deletePost, getPlace, resetAll, selectMyPosts, selectSavedPlaces, selectTrips, useStore } from '../lib/store'
 import { TrashIcon, Wordmark } from './Icons'
 import Account from './Account'
 import Media from './Media'
 
 export default function Profile({ onPost }) {
+  const [confirmReset, setConfirmReset] = useState(false)
   const profile = useStore((s) => s.profile)
   const mine = useStore(selectMyPosts)
   const saved = useStore(selectSavedPlaces)
@@ -69,10 +71,26 @@ export default function Profile({ onPost }) {
       )}
 
       <div className="px-5 py-10">
-        <button onClick={() => confirm('Reset Trekov to demo content? Your photos, saved places and trips will be cleared.') && resetAll()}
-                className="text-xs text-mist underline underline-offset-4 hover:text-rose">
-          Reset demo data
-        </button>
+        {confirmReset ? (
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-mist flex-1">
+              Clear your photos, saved places and trips?
+            </span>
+            <button onClick={() => setConfirmReset(false)}
+                    className="rounded-full border border-line px-3 py-1.5 text-xs font-semibold">
+              Keep
+            </button>
+            <button onClick={() => { resetAll(); setConfirmReset(false) }}
+                    className="rounded-full bg-rose text-white px-3 py-1.5 text-xs font-semibold">
+              Reset
+            </button>
+          </div>
+        ) : (
+          <button onClick={() => setConfirmReset(true)}
+                  className="text-xs text-mist underline underline-offset-4 hover:text-rose">
+            Reset demo data
+          </button>
+        )}
       </div>
     </>
   )

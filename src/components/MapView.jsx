@@ -1,8 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
-import { selectPlaceSearch, selectPlaces, useStore } from '../lib/store'
+import {
+  addStop, createTrip, getPlace, selectPlaceSearch, selectPlaces, selectTrips,
+  toggleSavePlace, upsertPlace, useStore,
+} from '../lib/store'
 import { createMap, preferredMapType, rememberMapType } from '../lib/mapDrivers'
 import { searchAnywhere } from '../lib/geocode'
-import { SearchIcon, Wordmark } from './Icons'
+import { CloseIcon, PlusIcon, SaveIcon, SearchIcon, Wordmark } from './Icons'
 
 const INDIA = [22.6, 79.0]
 
@@ -45,7 +48,7 @@ function markerHtml(node) {
   return `<div class="tk-cluster"><b>${places.length}</b><span>${total} photo${total === 1 ? '' : 's'}</span></div>`
 }
 
-export default function MapView({ onOpenPlace }) {
+export default function MapView({ onOpenPlace, onNewPlace }) {
   const host = useRef(null)
   const drv = useRef(null)
   const markers = useRef([])
@@ -57,7 +60,11 @@ export default function MapView({ onOpenPlace }) {
   // Anywhere in the world, not only the places Trekov already knows.
   const [world, setWorld] = useState([])
   const [searching, setSearching] = useState(false)
+  const [pending, setPending] = useState(null)   // a searched spot, not yet a place
+  const [tripMenu, setTripMenu] = useState(false)
+  const [toast, setToast] = useState('')
   const dropped = useRef(null)
+  const trips = useStore(selectTrips)
 
   const places = useStore(selectPlaces)
   const matches = useStore((s) => selectPlaceSearch(s, q))
@@ -111,16 +118,64 @@ export default function MapView({ onOpenPlace }) {
   function goTo(place) {
     setQ('')
     setWorld([])
+    setPending(null)
     dropped.current?.remove()
     dropped.current = null
     drv.current?.flyTo([place.lat, place.lng], 9)
     onOpenPlace(place.id)
   }
 
+  /**
+   * Adopt a searched spot into Trekov so it can be saved or put in a trip.
+   *
+   * The id is derived from Google's place id, so searching the same spot twice
+   * lands on the same record instead of quietly creating a duplicate.
+   */
+  function adopt(hit) {
+    const id = `pl_g_${hit.id}`
+    if (getPlace(id)) return id
+    const [region, ...rest] = (hit.detail || '').split(',').map((x) => x.trim())
+    upsertPlace({
+      id,
+      name: hit.name,
+      region: region || '',
+      country: rest.at(-1) || '',
+      lat: hit.lat,
+      lng: hit.lng,
+      bestTime: '',
+      blurb: '',
+    })
+    onNewPlace?.(getPlace(id))
+    return id
+  }
+
+  const flash = (m) => { setToast(m); setTimeout(() => setToast(''), 1800) }
+
+  function savePending() {
+    const id = adopt(pending)
+    flash(toggleSavePlace(id) ? `${pending.name} saved to To Visit` : 'Removed from To Visit')
+  }
+
+  function addPendingToTrip(tripId) {
+    const id = adopt(pending)
+    addStop(tripId, id)
+    setTripMenu(false)
+    flash(`${pending.name} added to ${trips.find((t) => t.id === tripId).title}`)
+  }
+
+  function addPendingToNewTrip() {
+    const id = adopt(pending)
+    createTrip({ title: `${pending.name} trip`, stops: [{ placeId: id, note: '' }] })
+    setTripMenu(false)
+    flash('New trip started')
+  }
+
   /** Fly to a geocoded result and mark it. It is not a Trekov place yet. */
   function goToWorld(hit) {
     setQ('')
     setWorld([])
+    setPending(hit)
+    setTripMenu(false)
     dropped.current?.remove()
     dropped.current = drv.current?.htmlMarker(
       [hit.lat, hit.lng],
@@ -218,7 +273,67 @@ export default function MapView({ onOpenPlace }) {
         )}
       </div>
 
-      {zoom < 6 && !q && (
+      {/* A searched spot: save it or put it in a trip without leaving the map. */}
+      {pending && (
+        <div className="absolute inset-x-3 bottom-4 z-[600] rounded-2xl border border-line bg-ink/95
+                        backdrop-blur-xl shadow-xl p-3 rise">
+          <div className="flex items-start gap-2">
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold truncate">{pending.name}</p>
+              <p className="text-xs text-mist truncate">{pending.detail}</p>
+            </div>
+            <button onClick={() => { setPending(null); setTripMenu(false); dropped.current?.remove(); dropped.current = null }}
+                    className="text-mist hover:text-white p-1 shrink-0" aria-label="Dismiss">
+              <CloseIcon size={16} />
+            </button>
+          </div>
+
+          <div className="flex gap-2 mt-2.5">
+            <button onClick={savePending}
+                    className="flex-1 flex items-center justify-center gap-1.5 rounded-full border border-line
+                               py-2 text-xs font-semibold hover:border-brand hover:text-brand">
+              <SaveIcon size={15} /> Save place
+            </button>
+            <button onClick={() => setTripMenu((v) => !v)} aria-expanded={tripMenu}
+                    className="flex-1 flex items-center justify-center gap-1.5 rounded-full border border-line
+                               py-2 text-xs font-semibold hover:border-brand hover:text-brand">
+              <PlusIcon size={15} /> Add to trip
+            </button>
+            <button onClick={() => { const id = adopt(pending); setPending(null); onOpenPlace(id) }}
+                    className="flex-1 rounded-full bg-brand text-ink py-2 text-xs font-semibold">
+              Open
+            </button>
+          </div>
+
+          {tripMenu && (
+            <ul className="mt-2 rounded-xl border border-line bg-surface divide-y divide-line overflow-hidden max-h-40 overflow-y-auto">
+              {trips.map((t) => (
+                <li key={t.id}>
+                  <button onClick={() => addPendingToTrip(t.id)}
+                          className="w-full text-left px-3 py-2 text-xs hover:bg-raised">
+                    {t.title} <span className="text-mist">· {t.stops.length} stops</span>
+                  </button>
+                </li>
+              ))}
+              <li>
+                <button onClick={addPendingToNewTrip}
+                        className="w-full text-left px-3 py-2 text-xs text-brand font-semibold hover:bg-raised">
+                  + Start a new trip
+                </button>
+              </li>
+            </ul>
+          )}
+        </div>
+      )}
+
+      {toast && (
+        <div className="absolute left-1/2 -translate-x-1/2 bottom-28 z-[700] rounded-full bg-white text-ink
+                        text-sm font-medium px-4 py-2 shadow-lg pointer-events-none">
+          {toast}
+        </div>
+      )}
+
+      {zoom < 6 && !q && !pending && (
         <p className="absolute inset-x-0 bottom-4 z-[500] text-center text-xs text-mist pointer-events-none">
           Zoom in to split clusters into places
         </p>

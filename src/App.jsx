@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
-  addNotification, adoptPlace, getPlace, importTrip, selectSavedPlaces, selectTrip,
+  addNotification, adoptPlace, getPlace, importTrip, meId, selectSavedPlaces, selectTrip,
   selectUnreadCount, useStore,
 } from './lib/store'
 import { decodeTripFromHash } from './lib/share'
@@ -126,7 +126,7 @@ export default function App() {
   }
 
   const screens = {
-    map: <MapView onOpenPlace={setPlace} />,
+    map: <MapView onOpenPlace={setPlace} onNewPlace={(place) => place && announcePlace(place, meId)} />,
     discover: <Discover onOpenPlace={setPlace} onNavigate={startNavigation} />,
     trips: <Trips onOpenPlace={setPlace} open={openTrip} onOpen={setOpenTrip} onNavigate={startNavigation} />,
     profile: <Profile onPost={() => setComposing(true)} />,

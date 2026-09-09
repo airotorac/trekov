@@ -17,6 +17,7 @@ const MSG = {
 export default function TripDetail({ trip, onBack, onOpenPlace, onNavigate }) {
   const places = useStore((s) => s.places)
   const [msg, setMsg] = useState('')
+  const [confirmDelete, setConfirmDelete] = useState(false)
   const [link, setLink] = useState('')
 
   const stops = trip.stops.map((s) => ({ ...s, place: getPlace(s.placeId) })).filter((s) => s.place)
@@ -127,11 +128,28 @@ export default function TripDetail({ trip, onBack, onOpenPlace, onNavigate }) {
 
         <Bookings trip={trip} destination={stops.at(-1)?.place?.name ?? ''} />
 
-        <button
-          onClick={() => confirm(`Delete “${trip.title}”?`) && (deleteTrip(trip.id), onBack())}
-          className="text-xs text-mist underline underline-offset-4 hover:text-rose pt-4">
-          Delete trip
-        </button>
+        {/* An inline confirm, not window.confirm: Chrome suppresses native
+            dialogs after a page has shown a few, and a suppressed confirm()
+            returns false silently — so deleting simply stopped working with
+            nothing to explain why. */}
+        {confirmDelete ? (
+          <div className="flex items-center gap-2 pt-4">
+            <span className="text-xs text-mist flex-1">Delete “{trip.title}” for good?</span>
+            <button onClick={() => setConfirmDelete(false)}
+                    className="rounded-full border border-line px-3 py-1.5 text-xs font-semibold">
+              Keep
+            </button>
+            <button onClick={() => { deleteTrip(trip.id); onBack() }}
+                    className="rounded-full bg-rose text-white px-3 py-1.5 text-xs font-semibold">
+              Delete
+            </button>
+          </div>
+        ) : (
+          <button onClick={() => setConfirmDelete(true)}
+                  className="text-xs text-mist underline underline-offset-4 hover:text-rose pt-4">
+            Delete trip
+          </button>
+        )}
       </div>
     </>
   )
