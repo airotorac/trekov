@@ -1,0 +1,29 @@
+<!doctype html><meta charset="utf-8"><title>Trekov mark</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0B0F0E;color:#fff;font:16px/1.5 Outfit,system-ui,sans-serif;padding:36px;display:flex;flex-wrap:wrap;gap:36px;align-items:flex-start}
+.card{background:#121917;border:1px solid #1E2B27;border-radius:20px;padding:26px;display:flex;flex-direction:column;gap:18px;align-items:center}
+.lbl{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#6B7F78}
+.row{display:flex;gap:22px;align-items:flex-end}
+.light{background:#fff;color:#0B0F0E}
+.lock{display:flex;align-items:center;gap:10px}
+.wm{font-weight:600;letter-spacing:-.035em}
+svg{display:block}
+</style>
+<script>
+const M='M32 61C32 61 53 40.5 53 25A21 21 0 1 0 11 25C11 40.5 32 61 32 61ZM18 34L27 21L31.5 28L37 13L46 34Z';
+function mark(size,fill){return `<svg viewBox="0 0 64 64" width="${size}" height="${size}"><defs><linearGradient id="g${size}${Math.random().toString(36).slice(2,6)}" x1="8" y1="4" x2="56" y2="60" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#3DDC97"/><stop offset=".55" stop-color="#00C08B"/><stop offset="1" stop-color="#0E9F6E"/></linearGradient></defs><path fill="${fill||'url(#'+document.currentId+')'}" fill-rule="evenodd" d="${M}"/></svg>`}
+</script>
+<div class="card"><span class="lbl">Mark · 128 / 64 / 32 / 20 / 16</span><div class="row" id="sizes"></div></div>
+<div class="card"><span class="lbl">Lockup dark</span><div class="lock"><span id="l1"></span><span class="wm" style="font-size:44px">trekov</span></div></div>
+<div class="card light"><span class="lbl" style="color:#5A6B65">Lockup light</span><div class="lock"><span id="l2"></span><span class="wm" style="font-size:44px">trekov</span></div></div>
+<div class="card"><span class="lbl">Mono white / black</span><div class="row"><span id="m1"></span><span id="m2" style="background:#fff;padding:8px;border-radius:12px"></span></div></div>
+<script>
+const M2='M32 61C32 61 53 40.5 53 25A21 21 0 1 0 11 25C11 40.5 32 61 32 61ZM17 34.5L26.5 20L31.5 28L37.5 11.5L47 34.5Z';
+const grad='<defs><linearGradient id="G" x1="8" y1="4" x2="56" y2="60" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#3DDC97"/><stop offset=".55" stop-color="#00C08B"/><stop offset="1" stop-color="#0E9F6E"/></linearGradient></defs>';
+const g=(s)=>`<svg viewBox="0 0 64 64" width="${s}" height="${s}">${grad}<path fill="url(#G)" fill-rule="evenodd" d="${M2}"/></svg>`;
+const mono=(s,c)=>`<svg viewBox="0 0 64 64" width="${s}" height="${s}"><path fill="${c}" fill-rule="evenodd" d="${M2}"/></svg>`;
+sizes.innerHTML=[128,64,32,20,16].map(g).join('');
+l1.innerHTML=g(48); l2.innerHTML=g(48);
+m1.innerHTML=mono(72,'#fff'); m2.innerHTML=mono(72,'#0B0F0E');
+</script>

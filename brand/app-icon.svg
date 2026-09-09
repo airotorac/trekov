@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Trekov app icon">
+  <defs><linearGradient id="bg" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#12211C"/><stop offset="1" stop-color="#0B0F0E"/></linearGradient>
+  <linearGradient id="g" x1="150" y1="96" x2="384" y2="424" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#3DDC97"/><stop offset=".55" stop-color="#00C08B"/><stop offset="1" stop-color="#0E9F6E"/></linearGradient></defs>
+  <rect width="512" height="512" rx="114" fill="url(#bg)"/>
+  <g transform="translate(96 88) scale(5.1)"><path fill="url(#g)" fill-rule="evenodd" d="M32 61C32 61 53 40.5 53 25A21 21 0 1 0 11 25C11 40.5 32 61 32 61ZM17 34.5L26.5 20L31.5 28L37.5 11.5L47 34.5Z"/></g>
+</svg>
