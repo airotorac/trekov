@@ -12,3 +12,10 @@ export const mapsUrl = (place) =>
   place.lat != null
     ? `https://www.google.com/maps/search/?api=1&query=${place.lat},${place.lng}`
     : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${place.name} ${place.region}`)}`
+
+/** "9 Sep 2026, 2:31 pm" — an upload's exact moment, next to the relative one. */
+export const formatDateTime = (iso) =>
+  new Date(iso).toLocaleString(undefined, {
+    day: 'numeric', month: 'short', year: 'numeric',
+    hour: 'numeric', minute: '2-digit',
+  })

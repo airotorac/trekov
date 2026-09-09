@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import {
-  selectPlace, selectPostsAt, selectTrips, addStop, createTrip, toggleSavePlace, useStore,
+  selectPlace, selectLatestAt, selectTrips, addStop, createTrip, getUser, toggleSavePlace, useStore,
 } from '../lib/store'
-import { compact, mapsUrl, timeAgo } from '../lib/format'
+import { compact, formatDateTime, mapsUrl, timeAgo } from '../lib/format'
 import { CalendarIcon, CloseIcon, NavIcon, PlusIcon, SaveIcon } from './Icons'
 import Media from './Media'
 import Portal from './Portal'
@@ -10,18 +10,18 @@ import PhotoViewer from './PhotoViewer'
 
 /** What you get when you tap a place on the map: its photos, newest first. */
 export default function PlaceSheet({ placeId, onClose, onNavigate }) {
-  const [tab, setTab] = useState('recent')
   const [openPost, setOpenPost] = useState(null)
   const [tripMenu, setTripMenu] = useState(false)
   const [toast, setToast] = useState('')
 
   const place = useStore((s) => selectPlace(s, placeId))
-  const posts = useStore((s) => selectPostsAt(s, placeId))
+  // A place carries a single, current photo — the most recent upload.
+  const post = useStore((s) => selectLatestAt(s, placeId))
   const trips = useStore(selectTrips)
 
   if (!place) return null
 
-  const shown = tab === 'recent' ? posts : [...posts].sort((a, b) => b.likes - a.likes)
+  const author = post ? getUser(post.authorId) : null
 
   const flash = (m) => { setToast(m); setTimeout(() => setToast(''), 1700) }
 
@@ -63,7 +63,7 @@ export default function PlaceSheet({ placeId, onClose, onNavigate }) {
                   <CalendarIcon size={13} /> Best {place.bestTime}
                 </span>
               )}
-              <span className="text-mist">{place.postCount} photo{place.postCount === 1 ? '' : 's'}</span>
+              <span className="text-mist">{post ? 'Latest photo' : 'No photo yet'}</span>
               <a href={mapsUrl(place)} target="_blank" rel="noreferrer" className="text-mist ml-auto">
                 Open in Google Maps
               </a>
@@ -110,32 +110,31 @@ export default function PlaceSheet({ placeId, onClose, onNavigate }) {
               </ul>
             )}
 
-            <div className="mt-3 flex gap-1 text-sm">
-              {['recent', 'top'].map((t) => (
-                <button key={t} onClick={() => setTab(t)}
-                        className={`px-3 py-1.5 rounded-full capitalize transition
-                                    ${tab === t ? 'bg-raised text-white font-semibold' : 'text-mist hover:text-white'}`}>
-                  {t === 'recent' ? 'Recent' : 'Most liked'}
-                </button>
-              ))}
-            </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-1">
-            {shown.length === 0 ? (
-              <p className="text-center text-sm text-mist py-16">No photos here yet. Be the first.</p>
+          <div className="flex-1 overflow-y-auto">
+            {!post ? (
+              <p className="text-center text-sm text-mist py-16 px-8">
+                No photo here yet. Take one and it becomes this place's picture.
+              </p>
             ) : (
-              <div className="grid grid-cols-3 gap-1">
-                {shown.map((post) => (
-                  <button key={post.id} onClick={() => setOpenPost(post.id)} className="relative aspect-square">
-                    <Media media={post.media} alt={place.name} className="size-full object-cover rounded-md" />
-                    <span className="absolute inset-x-0 bottom-0 px-1.5 pb-1 pt-5 text-[10px] text-left
-                                     bg-gradient-to-t from-black/80 to-transparent rounded-b-md truncate block">
-                      ♥ {compact(post.likes)} · {timeAgo(post.createdAt)}
-                    </span>
-                  </button>
-                ))}
-              </div>
+              <button onClick={() => setOpenPost(post.id)} className="w-full text-left">
+                <Media media={post.media} alt={place.name} className="w-full aspect-[4/5] object-cover bg-raised" />
+                {/* Who took it and when — the photo is only meaningful with both. */}
+                <div className="flex items-center gap-3 px-4 py-3">
+                  <img src={author.avatar} alt="" className="size-9 rounded-full object-cover shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold truncate leading-tight">@{author.handle}</p>
+                    <p className="text-xs text-mist truncate">
+                      {formatDateTime(post.createdAt)} · {timeAgo(post.createdAt)} ago
+                    </p>
+                  </div>
+                  <span className="text-xs text-mist shrink-0">♥ {compact(post.likes)}</span>
+                </div>
+                {post.caption && (
+                  <p className="px-4 pb-4 text-sm text-white/85 leading-snug">{post.caption}</p>
+                )}
+              </button>
             )}
           </div>
 

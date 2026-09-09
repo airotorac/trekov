@@ -21,7 +21,7 @@ chronological timeline.
 | Screen | Behaviour |
 |---|---|
 | **Map** | Satellite map with a marker per place, thumbnail and photo count. Markers cluster at low zoom and split as you zoom in. Search flies to a place. |
-| **Place sheet** | Tap a marker: blurb, best season, photo count, Maps link, Recent / Most-liked photo grid, Save place, Add to trip |
+| **Place sheet** | Tap a marker: blurb, best season, Maps link, the place's current photo credited to whoever took it and when, Save place, Add to trip |
 | **Photo** | Full view with author, caption, tags, like and comments |
 | **Trips** | Create a trip, add stops from the map, reorder them, per-stop notes, dates, trip notes, delete |
 | **Share** | A trip encodes into a link. Opening it shows the itinerary and offers to save it — no backend, no account |
@@ -29,7 +29,7 @@ chronological timeline.
 | **Navigate** | In-app turn-by-turn to any place: live GPS, route line, next instruction, distance and ETA, off-route warning, and a bearing compass that works with no network |
 | **Offline** | Service worker keeps the app openable with no connection; "Save map offline" caches satellite tiles along the route; routes are cached and replay offline |
 | **Travelling together** | Everyone navigating the same trip sees each other live on the map with distance apart |
-| **Post** | Upload a photo or video against an existing place, or a new one you pin on a map |
+| **Post** | Take a photo in the app against an existing place, or a new one you pin on a map. There is no gallery or file upload anywhere |
 | **You** | Your photos, counts, delete, reset demo data |
 
 Records live in `localStorage`; uploaded media lives in IndexedDB (too large for
@@ -111,6 +111,24 @@ Two implementation notes worth keeping:
 - Overlays render through `Portal`. The card entrance animation leaves a
   `transform` behind, which makes that element the containing block for
   `position: fixed` children and pins sheets to the card instead of the viewport.
+
+## Photos: one per place, camera only
+
+**A place shows only its latest photo.** Posting to a place replaces what was
+there and releases the old blob, so IndexedDB does not grow behind pictures
+nobody can see. `onePerPlace()` in `store.js` collapses saved state on load, so
+installs predating this rule migrate on first open.
+
+Every photo carries **who took it and when** — handle, absolute timestamp and
+relative age — because an undated photo of a place says nothing useful about
+whether the road is open.
+
+**Capture happens in the app.** `Camera.jsx` uses `getUserMedia` and paints a
+frame to a canvas; there is no `<input type="file">` anywhere in the codebase,
+which is the only way to actually rule out gallery uploads — `capture` on a
+file input is a hint that desktop browsers ignore. This needs a secure context,
+so it works on trekov.com and localhost but not over plain http on a LAN IP.
+Front-camera captures are un-mirrored on the way to the canvas.
 
 ## Navigation, offline and live sharing
 

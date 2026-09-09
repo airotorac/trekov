@@ -1,15 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPost, selectPlaceSearch, upsertPlace, useStore } from '../lib/store'
 import { CameraIcon, CloseIcon, Logo, SearchIcon } from './Icons'
+import Camera from './Camera'
 import PinMap from './PinMap'
 import Portal from './Portal'
 
-const MAX_MB = 40
 const field = 'w-full bg-raised rounded-xl px-3.5 py-2.5 text-sm outline-none placeholder:text-mist focus:ring-2 focus:ring-brand/50'
 
 export default function Composer({ onClose, onPosted }) {
   const [file, setFile] = useState(null)
   const [preview, setPreview] = useState('')
+  const [shooting, setShooting] = useState(true)   // open straight into the camera
   const [mode, setMode] = useState('existing')     // 'existing' | 'new'
   const [placeId, setPlaceId] = useState('')
   const [q, setQ] = useState('')
@@ -18,7 +19,6 @@ export default function Composer({ onClose, onPosted }) {
   const [tags, setTags] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
-  const input = useRef(null)
 
   const matches = useStore((s) => selectPlaceSearch(s, q)).slice(0, 6)
   const chosen = useStore((s) => (placeId ? s.places[placeId] : null))
@@ -30,13 +30,6 @@ export default function Composer({ onClose, onPosted }) {
     return () => URL.revokeObjectURL(url)
   }, [file])
 
-  function pick(e) {
-    const f = e.target.files?.[0]
-    if (!f) return
-    if (f.size > MAX_MB * 1024 * 1024) return setError(`That file is over ${MAX_MB}MB. Pick a smaller one.`)
-    setError('')
-    setFile(f)
-  }
 
   const placeReady = mode === 'existing' ? !!placeId : fresh.name.trim() && fresh.region.trim()
   const ready = file && placeReady
@@ -65,6 +58,17 @@ export default function Composer({ onClose, onPosted }) {
     }
   }
 
+  if (shooting) {
+    return (
+      <Portal>
+        <Camera
+          onCapture={(f) => { setFile(f); setError(''); setShooting(false) }}
+          onCancel={() => (file ? setShooting(false) : onClose())}
+        />
+      </Portal>
+    )
+  }
+
   return (
     <Portal>
       <div className="fixed inset-0 z-[1200] bg-black flex justify-center">
@@ -80,22 +84,23 @@ export default function Composer({ onClose, onPosted }) {
 
         <form id="composer" onSubmit={submit}
               className="flex-1 overflow-y-auto p-4 space-y-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
-          <button type="button" onClick={() => input.current?.click()}
+          <button type="button" onClick={() => setShooting(true)}
                   className="w-full aspect-[4/5] max-h-[38vh] rounded-2xl border border-dashed border-line bg-surface
                              overflow-hidden flex flex-col items-center justify-center gap-3 text-mist hover:border-brand transition">
-            {preview ? (
-              file.type.startsWith('video')
-                ? <video src={preview} className="size-full object-cover" muted autoPlay loop playsInline />
-                : <img src={preview} alt="" className="size-full object-cover" />
-            ) : (
-              <>
-                <CameraIcon size={30} />
-                <span className="text-sm">Add a photo or video</span>
-                <span className="text-xs">Up to {MAX_MB}MB</span>
-              </>
-            )}
+            {preview
+              ? <img src={preview} alt="" className="size-full object-cover" />
+              : (
+                <>
+                  <CameraIcon size={30} />
+                  <span className="text-sm">Take a photo</span>
+                  <span className="text-xs">Camera only — no gallery uploads</span>
+                </>
+              )}
           </button>
-          <input ref={input} type="file" accept="image/*,video/*" onChange={pick} className="hidden" />
+          {preview && (
+            <button type="button" onClick={() => setShooting(true)}
+                    className="text-xs text-brand font-semibold">Retake</button>
+          )}
 
           {error && <p className="text-sm text-rose">{error}</p>}
 
@@ -173,7 +178,10 @@ export default function Composer({ onClose, onPosted }) {
                  onChange={(e) => setTags(e.target.value)} />
 
           <p className="text-xs text-mist leading-relaxed">
-            Media stays on this device. Nothing is uploaded to a server yet.
+            Photos are taken in the app, so every one is from where you actually
+            stood. A place keeps only its most recent photo — posting here replaces
+            what is there now. Media stays on this device; nothing is uploaded to a
+            server yet.
           </p>
         </form>
         </div>

@@ -58,6 +58,9 @@ export function createGoogleMap(gm, el, { center, zoom, mapType = 'hybrid', zoom
     zoomControl,
     zoomControlOptions: zoomControl ? { position: gm.ControlPosition.RIGHT_BOTTOM } : undefined,
     gestureHandling: 'greedy',
+    // The attribution and Google logo are required by the Maps Platform terms
+    // and must stay; the keyboard-shortcuts affordance is ours to switch off.
+    keyboardShortcuts: false,
     clickableIcons: false,
     backgroundColor: '#0E1413',
   })

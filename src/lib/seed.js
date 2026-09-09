@@ -69,7 +69,17 @@ const RAW = [
 
 const daysAgo = (n) => new Date(Date.now() - n * 864e5).toISOString()
 
-export const POSTS = RAW.map(([id, placeId, authorId, days, slug, caption, tags, likes]) => ({
+// A place keeps only its latest photo, so the seed is collapsed the same way:
+// for each place, the entry with the fewest days-ago wins.
+const NEWEST_PER_PLACE = Object.values(
+  RAW.reduce((acc, row) => {
+    const placeId = row[1]
+    if (!acc[placeId] || row[3] < acc[placeId][3]) acc[placeId] = row
+    return acc
+  }, {}),
+)
+
+export const POSTS = NEWEST_PER_PLACE.map(([id, placeId, authorId, days, slug, caption, tags, likes]) => ({
   id, placeId, authorId,
   createdAt: daysAgo(days),
   media: { type: 'image', src: photo(slug) },
@@ -77,10 +87,12 @@ export const POSTS = RAW.map(([id, placeId, authorId, days, slug, caption, tags,
   comments: [],
 }))
 
-POSTS[0].comments = [
+const byId = (id) => POSTS.find((p) => p.id === id)
+
+;(byId('p1') ?? POSTS[0]).comments = [
   { id: 'c1', userId: 'u_dev', text: 'The colour shift around 4pm here is unreal.', createdAt: daysAgo(3) },
   { id: 'c2', userId: 'u_mei', text: 'How bad was the altitude on day one?',        createdAt: daysAgo(3) },
 ]
-POSTS[5].comments = [
+;(byId('p6') ?? POSTS[1]).comments = [
   { id: 'c3', userId: 'u_aria', text: 'Adding this immediately.', createdAt: daysAgo(4) },
 ]

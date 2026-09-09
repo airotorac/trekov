@@ -26,6 +26,20 @@ function initial() {
   }
 }
 
+/**
+ * A place shows only its most recent photo. Installs that predate that rule
+ * hold several per place, so collapse on load — otherwise old photos linger
+ * in storage behind one nobody can see.
+ */
+function onePerPlace(posts) {
+  const best = new Map()
+  for (const post of posts) {
+    const held = best.get(post.placeId)
+    if (!held || new Date(post.createdAt) > new Date(held.createdAt)) best.set(post.placeId, post)
+  }
+  return [...best.values()]
+}
+
 function load() {
   try {
     const saved = JSON.parse(localStorage.getItem(KEY) || 'null')
@@ -39,10 +53,10 @@ function load() {
       ...base,
       ...saved,
       places: { ...base.places, ...saved.places },
-      posts: [
+      posts: onePerPlace([
         ...saved.posts.map((p) => (seedById.has(p.id) ? { ...p, media: seedById.get(p.id).media } : p)),
         ...POSTS.filter((p) => !seenPosts.has(p.id)).map((p) => ({ ...p, likedByMe: false })),
-      ],
+      ]),
     }
   } catch {
     return initial()
@@ -51,6 +65,10 @@ function load() {
 
 let state = load()
 const listeners = new Set()
+
+// load() may have collapsed or reconciled things; write that back now rather
+// than leaving superseded records on disk until the user's next action.
+try { localStorage.setItem(KEY, JSON.stringify(state)) } catch {}
 
 function set(next) {
   state = next
@@ -107,9 +125,12 @@ export const selectPlaces = memo((s) => {
 
 export const selectPlace = memo((s, id) => selectPlaces(s).find((p) => p.id === id) ?? null)
 
-/** Posts at one place, most recent first. */
+/** Posts at one place, most recent first. A place keeps only one. */
 export const selectPostsAt = memo((s, placeId) =>
   s.posts.filter((p) => p.placeId === placeId).sort(newest))
+
+/** The single photo currently standing for a place, or null. */
+export const selectLatestAt = memo((s, placeId) => selectPostsAt(s, placeId)[0] ?? null)
 
 export const selectSavedPlaces = memo((s) =>
   s.savedPlaces.map((id) => selectPlaces(s).find((p) => p.id === id)).filter(Boolean))
@@ -167,16 +188,27 @@ export function upsertPlace(place) {
   return id
 }
 
+/**
+ * Post a photo to a place, replacing whatever was there.
+ *
+ * A place shows only its latest photo, so the previous one is dropped and its
+ * blob released — otherwise IndexedDB would grow without bound behind a
+ * picture nobody can see.
+ */
 export async function createPost({ file, placeId, caption, tags }) {
   const id = `p_${Date.now()}`
   await putBlob(id, file)
+  const superseded = state.posts.filter((p) => p.placeId === placeId)
+  for (const old of superseded) {
+    if (old.media.blobKey) await delBlob(old.media.blobKey).catch(() => {})
+  }
   set({
     ...state,
     posts: [{
       id, placeId, authorId: ME, createdAt: new Date().toISOString(),
       media: { type: file.type.startsWith('video') ? 'video' : 'image', src: '', blobKey: id },
       caption, tags, likes: 0, likedByMe: false, comments: [],
-    }, ...state.posts],
+    }, ...state.posts.filter((p) => p.placeId !== placeId)],
   })
   return id
 }
