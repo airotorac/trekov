@@ -69,17 +69,7 @@ const RAW = [
 
 const daysAgo = (n) => new Date(Date.now() - n * 864e5).toISOString()
 
-// A place keeps only its latest photo, so the seed is collapsed the same way:
-// for each place, the entry with the fewest days-ago wins.
-const NEWEST_PER_PLACE = Object.values(
-  RAW.reduce((acc, row) => {
-    const placeId = row[1]
-    if (!acc[placeId] || row[3] < acc[placeId][3]) acc[placeId] = row
-    return acc
-  }, {}),
-)
-
-export const POSTS = NEWEST_PER_PLACE.map(([id, placeId, authorId, days, slug, caption, tags, likes]) => ({
+export const POSTS = RAW.map(([id, placeId, authorId, days, slug, caption, tags, likes]) => ({
   id, placeId, authorId,
   createdAt: daysAgo(days),
   media: { type: 'image', src: photo(slug) },

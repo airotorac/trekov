@@ -26,20 +26,6 @@ function initial() {
   }
 }
 
-/**
- * A place shows only its most recent photo. Installs that predate that rule
- * hold several per place, so collapse on load — otherwise old photos linger
- * in storage behind one nobody can see.
- */
-function onePerPlace(posts) {
-  const best = new Map()
-  for (const post of posts) {
-    const held = best.get(post.placeId)
-    if (!held || new Date(post.createdAt) > new Date(held.createdAt)) best.set(post.placeId, post)
-  }
-  return [...best.values()]
-}
-
 function load() {
   try {
     const saved = JSON.parse(localStorage.getItem(KEY) || 'null')
@@ -53,7 +39,7 @@ function load() {
       ...base,
       ...saved,
       places: { ...base.places, ...saved.places },
-      posts: onePerPlace([
+      posts: ([
         ...saved.posts.map((p) => (seedById.has(p.id) ? { ...p, media: seedById.get(p.id).media } : p)),
         ...POSTS.filter((p) => !seenPosts.has(p.id)).map((p) => ({ ...p, likedByMe: false })),
       ]),
@@ -129,8 +115,17 @@ export const selectPlace = memo((s, id) => selectPlaces(s).find((p) => p.id === 
 export const selectPostsAt = memo((s, placeId) =>
   s.posts.filter((p) => p.placeId === placeId).sort(newest))
 
-/** The single photo currently standing for a place, or null. */
+/** The photo currently holding a place's banner — the most recent one. */
 export const selectLatestAt = memo((s, placeId) => selectPostsAt(s, placeId)[0] ?? null)
+
+/** Everything else shot at a place, newest first, below the banner. */
+export const selectOthersAt = memo((s, placeId) => selectPostsAt(s, placeId).slice(1))
+
+/** How many of a place's photos are yours — the competitive bit. */
+export const selectMyShareAt = memo((s, placeId) => {
+  const all = selectPostsAt(s, placeId)
+  return { mine: all.filter((p) => p.authorId === ME).length, total: all.length }
+})
 
 export const selectSavedPlaces = memo((s) =>
   s.savedPlaces.map((id) => selectPlaces(s).find((p) => p.id === id)).filter(Boolean))
@@ -189,26 +184,20 @@ export function upsertPlace(place) {
 }
 
 /**
- * Post a photo to a place, replacing whatever was there.
- *
- * A place shows only its latest photo, so the previous one is dropped and its
- * blob released — otherwise IndexedDB would grow without bound behind a
- * picture nobody can see.
+ * Post a photo to a place. The newest photo takes the place's banner; earlier
+ * ones stay, credited, in the list beneath it — so the banner is something to
+ * win rather than something that destroys what came before.
  */
 export async function createPost({ file, placeId, caption, tags }) {
   const id = `p_${Date.now()}`
   await putBlob(id, file)
-  const superseded = state.posts.filter((p) => p.placeId === placeId)
-  for (const old of superseded) {
-    if (old.media.blobKey) await delBlob(old.media.blobKey).catch(() => {})
-  }
   set({
     ...state,
     posts: [{
       id, placeId, authorId: ME, createdAt: new Date().toISOString(),
       media: { type: file.type.startsWith('video') ? 'video' : 'image', src: '', blobKey: id },
       caption, tags, likes: 0, likedByMe: false, comments: [],
-    }, ...state.posts.filter((p) => p.placeId !== placeId)],
+    }, ...state.posts],
   })
   return id
 }

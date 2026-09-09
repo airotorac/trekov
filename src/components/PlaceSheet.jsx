@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import {
-  selectPlace, selectLatestAt, selectTrips, addStop, createTrip, getUser, toggleSavePlace, useStore,
+  selectPlace, selectLatestAt, selectOthersAt, selectTrips, addStop, createTrip, getUser,
+  meId, toggleSavePlace, useStore,
 } from '../lib/store'
 import { compact, formatDateTime, mapsUrl, timeAgo } from '../lib/format'
 import { CalendarIcon, CloseIcon, NavIcon, PlusIcon, SaveIcon } from './Icons'
@@ -15,8 +16,9 @@ export default function PlaceSheet({ placeId, onClose, onNavigate }) {
   const [toast, setToast] = useState('')
 
   const place = useStore((s) => selectPlace(s, placeId))
-  // A place carries a single, current photo — the most recent upload.
+  // The newest photo holds the banner; the rest are listed beneath it.
   const post = useStore((s) => selectLatestAt(s, placeId))
+  const others = useStore((s) => selectOthersAt(s, placeId))
   const trips = useStore(selectTrips)
 
   if (!place) return null
@@ -63,7 +65,9 @@ export default function PlaceSheet({ placeId, onClose, onNavigate }) {
                   <CalendarIcon size={13} /> Best {place.bestTime}
                 </span>
               )}
-              <span className="text-mist">{post ? 'Latest photo' : 'No photo yet'}</span>
+              <span className="text-mist">
+                {place.postCount} photo{place.postCount === 1 ? '' : 's'}
+              </span>
               <a href={mapsUrl(place)} target="_blank" rel="noreferrer" className="text-mist ml-auto">
                 Open in Google Maps
               </a>
@@ -114,27 +118,69 @@ export default function PlaceSheet({ placeId, onClose, onNavigate }) {
 
           <div className="flex-1 overflow-y-auto">
             {!post ? (
-              <p className="text-center text-sm text-mist py-16 px-8">
-                No photo here yet. Take one and it becomes this place's picture.
-              </p>
+              <div className="text-center text-sm text-mist py-16 px-8">
+                <p>No photo here yet.</p>
+                <p className="mt-1 text-xs">Take the first one and it holds the banner.</p>
+              </div>
             ) : (
-              <button onClick={() => setOpenPost(post.id)} className="w-full text-left">
-                <Media media={post.media} alt={place.name} className="w-full aspect-[4/5] object-cover bg-raised" />
-                {/* Who took it and when — the photo is only meaningful with both. */}
-                <div className="flex items-center gap-3 px-4 py-3">
-                  <img src={author.avatar} alt="" className="size-9 rounded-full object-cover shrink-0" />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold truncate leading-tight">@{author.handle}</p>
-                    <p className="text-xs text-mist truncate">
-                      {formatDateTime(post.createdAt)} · {timeAgo(post.createdAt)} ago
-                    </p>
+              <>
+                {/* The banner: whoever shot most recently holds it. */}
+                <button onClick={() => setOpenPost(post.id)} className="w-full text-left relative">
+                  <Media media={post.media} alt={place.name} className="w-full aspect-[4/5] object-cover bg-raised" />
+                  <span className="absolute top-3 left-3 flex items-center gap-1.5 rounded-full bg-brand text-ink
+                                   text-[10px] font-bold uppercase tracking-[0.1em] px-2.5 py-1">
+                    ★ Featured
+                    {post.authorId === meId && <span className="font-extrabold">· yours</span>}
+                  </span>
+                  <div className="flex items-center gap-3 px-4 py-3">
+                    <img src={getUser(post.authorId).avatar} alt="" className="size-9 rounded-full object-cover shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold truncate leading-tight">@{getUser(post.authorId).handle}</p>
+                      <p className="text-xs text-mist truncate">
+                        {formatDateTime(post.createdAt)} · {timeAgo(post.createdAt)} ago
+                      </p>
+                    </div>
+                    <span className="text-xs text-mist shrink-0">♥ {compact(post.likes)}</span>
                   </div>
-                  <span className="text-xs text-mist shrink-0">♥ {compact(post.likes)}</span>
-                </div>
-                {post.caption && (
-                  <p className="px-4 pb-4 text-sm text-white/85 leading-snug">{post.caption}</p>
+                  {post.caption && (
+                    <p className="px-4 pb-3 text-sm text-white/85 leading-snug">{post.caption}</p>
+                  )}
+                </button>
+
+                <p className="px-4 pb-3 text-[11px] text-mist">
+                  The newest photo holds the banner. Post one here to take it.
+                </p>
+
+                {others.length > 0 && (
+                  <div className="border-t border-line">
+                    <h3 className="px-4 pt-3 pb-2 text-xs uppercase tracking-[0.14em] text-mist">
+                      Also shot here · {others.length}
+                    </h3>
+                    <ul className="pb-2">
+                      {others.map((o) => {
+                        const u = getUser(o.authorId)
+                        return (
+                          <li key={o.id}>
+                            <button onClick={() => setOpenPost(o.id)}
+                                    className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-surface">
+                              <Media media={o.media} alt="" className="size-14 rounded-xl object-cover shrink-0 bg-raised" />
+                              <span className="min-w-0 flex-1">
+                                <span className="block text-sm font-medium truncate">
+                                  @{u.handle}{o.authorId === meId && <span className="text-brand"> · you</span>}
+                                </span>
+                                <span className="block text-[11px] text-mist truncate">
+                                  {formatDateTime(o.createdAt)}
+                                </span>
+                              </span>
+                              <span className="text-[11px] text-mist shrink-0">♥ {compact(o.likes)}</span>
+                            </button>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  </div>
                 )}
-              </button>
+              </>
             )}
           </div>
 

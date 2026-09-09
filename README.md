@@ -21,7 +21,7 @@ chronological timeline.
 | Screen | Behaviour |
 |---|---|
 | **Map** | Satellite map with a marker per place, thumbnail and photo count. Markers cluster at low zoom and split as you zoom in. Search flies to a place. |
-| **Place sheet** | Tap a marker: blurb, best season, Maps link, the place's current photo credited to whoever took it and when, Save place, Add to trip |
+| **Place sheet** | Tap a marker: blurb, best season, Maps link, the featured banner (newest photo, credited), every earlier photo beneath it, Save place, Add to trip |
 | **Photo** | Full view with author, caption, tags, like and comments |
 | **Trips** | Create a trip, add stops from the map, reorder them, per-stop notes, dates, trip notes, delete |
 | **Share** | A trip encodes into a link. Opening it shows the itinerary and offers to save it — no backend, no account |
@@ -29,7 +29,7 @@ chronological timeline.
 | **Navigate** | In-app turn-by-turn to any place: live GPS, route line, next instruction, distance and ETA, off-route warning, and a bearing compass that works with no network |
 | **Offline** | Service worker keeps the app openable with no connection; "Save map offline" caches satellite tiles along the route; routes are cached and replay offline |
 | **Travelling together** | Everyone navigating the same trip sees each other live on the map with distance apart |
-| **Post** | Take a photo in the app against an existing place, or a new one you pin on a map. There is no gallery or file upload anywhere |
+| **Post** | Take a photo in the app against an existing place, or a new one you pin on a map — yours takes the banner. There is no gallery or file upload anywhere |
 | **You** | Your photos, counts, delete, reset demo data |
 
 Records live in `localStorage`; uploaded media lives in IndexedDB (too large for
@@ -112,12 +112,14 @@ Two implementation notes worth keeping:
   `transform` behind, which makes that element the containing block for
   `position: fixed` children and pins sheets to the card instead of the viewport.
 
-## Photos: one per place, camera only
+## Photos: a banner worth taking, camera only
 
-**A place shows only its latest photo.** Posting to a place replaces what was
-there and releases the old blob, so IndexedDB does not grow behind pictures
-nobody can see. `onePerPlace()` in `store.js` collapses saved state on load, so
-installs predating this rule migrate on first open.
+**The newest photo holds the place's banner**; everything shot there before it
+stays, credited, in the list beneath. That is the competitive loop — the banner
+is won by turning up more recently, not by deleting anyone's work. An earlier
+build replaced the previous photo outright; keeping them costs a little storage
+and is worth it, because a place with one photo has no history and nothing to
+compete for.
 
 Every photo carries **who took it and when** — handle, absolute timestamp and
 relative age — because an undated photo of a place says nothing useful about

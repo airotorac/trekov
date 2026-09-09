@@ -179,9 +179,9 @@ export default function Composer({ onClose, onPosted }) {
 
           <p className="text-xs text-mist leading-relaxed">
             Photos are taken in the app, so every one is from where you actually
-            stood. A place keeps only its most recent photo — posting here replaces
-            what is there now. Media stays on this device; nothing is uploaded to a
-            server yet.
+            stood. Yours becomes the place's featured banner until someone posts a
+            newer one; earlier photos stay in the list beneath it. Media stays on
+            this device; nothing is uploaded to a server yet.
           </p>
         </form>
         </div>
