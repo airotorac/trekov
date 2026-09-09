@@ -26,6 +26,9 @@ chronological timeline.
 | **Trips** | Create a trip, add stops from the map, reorder them, per-stop notes, dates, trip notes, delete |
 | **Share** | A trip encodes into a link. Opening it shows the itinerary and offers to save it — no backend, no account |
 | **To Visit** | Saved places grouped by country, with season and Maps link |
+| **Navigate** | In-app turn-by-turn to any place: live GPS, route line, next instruction, distance and ETA, off-route warning, and a bearing compass that works with no network |
+| **Offline** | Service worker keeps the app openable with no connection; "Save map offline" caches satellite tiles along the route; routes are cached and replay offline |
+| **Travelling together** | Everyone navigating the same trip sees each other live on the map with distance apart |
 | **Post** | Upload a photo or video against an existing place, or a new one you pin on a map |
 | **You** | Your photos, counts, delete, reset demo data |
 
@@ -81,9 +84,14 @@ src/
   lib/store.js    all reads + writes, memoised selectors, useSyncExternalStore
   lib/media.js    IndexedDB blob storage for uploads
   lib/share.js    trip <-> link encoding
+  lib/geo.js      tile maths, great-circle distance and bearing
+  lib/route.js    OSRM routing with an offline cache
+  lib/offline.js  satellite tile download into Cache Storage
+  lib/party.js    live location sharing, pluggable transport
   lib/seed.js     demo places, posts and users
   components/     MapView, PlaceSheet, PhotoViewer, Trips, TripDetail,
-                  SharedTrip, Saved, Profile, Composer, PinMap, TabBar
+                  SharedTrip, Saved, Profile, Composer, PinMap, TabBar,
+                  Navigate
 ```
 
 **A place is the primary record**; posts hang off it, and both the saved list and
@@ -100,6 +108,26 @@ Two implementation notes worth keeping:
   `transform` behind, which makes that element the containing block for
   `position: fixed` children and pins sheets to the card instead of the viewport.
 
+## Navigation, offline and live sharing
+
+**Routing** goes through the public OSRM demo server. It is rate-limited and
+explicitly not for production traffic — point `HOST` in `src/lib/route.js` at
+your own OSRM/Valhalla instance before real users arrive. Every route is cached,
+so one that was fetched with signal still guides you without.
+
+**Offline** has two halves. `public/sw.js` caches the app shell so it opens with
+no connection, and serves map tiles cache-first. "Save map offline" downloads
+satellite tiles along the whole route at several zoom levels into Cache Storage.
+With the radio off you keep: the app, the saved tiles, the cached route, your
+GPS position, and the bearing compass. GPS itself needs no network.
+
+**Live sharing** between people on one trip needs a server, and there isn't one
+yet. `src/lib/party.js` defines the transport interface and ships a
+`BroadcastChannel` implementation that genuinely works across tabs and windows
+on one machine — enough to build and test the whole UI. Swapping in Supabase
+Realtime is roughly fifteen lines; the shape is documented at the top of that
+file. Until then, two people on two phones will **not** see each other.
+
 ## Maps
 
 Tiles come from Esri's keyless services — World Imagery for the satellite base,
@@ -113,6 +141,10 @@ REQUIRED" without a key.
   *not* depict the places named. Substitute your own aerial stills.
 - **Backend.** Auth, a `places` / `posts` / `saves` / `trips` schema, object storage.
 - **Share links are unsigned and public.** Anyone with the URL sees the itinerary.
+- **Live sharing is single-device only** until a realtime backend is wired in.
+- **Routing runs on OSRM's demo server** — fine for a prototype, not for traffic.
+- **No voice guidance or automatic rerouting** — the route is fetched once per
+  navigation session.
 - **Video** uploads work, but there's no transcoding or thumbnailing.
 - **Moderation and reporting** before any public launch.
 - **Wire up the early-access form.** `index.html` has a `FORM_ENDPOINT` constant;

@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
-import { importTrip, selectSavedPlaces, useStore } from './lib/store'
+import { useEffect, useMemo, useState } from 'react'
+import { getPlace, importTrip, selectSavedPlaces, selectTrip, useStore } from './lib/store'
 import { decodeTripFromHash } from './lib/share'
 import Composer from './components/Composer'
 import MapView from './components/MapView'
+import Navigate from './components/Navigate'
 import PlaceSheet from './components/PlaceSheet'
 import Profile from './components/Profile'
 import Saved from './components/Saved'
@@ -21,10 +22,27 @@ export default function App() {
   const [composing, setComposing] = useState(false)
   const [place, setPlace] = useState(null)
   const [openTrip, setOpenTrip] = useState(null)
+  // { placeId, tripId? } while navigating.
+  const [nav, setNav] = useState(null)
   // A trip that arrived over a share link, waiting to be accepted.
   const [incoming, setIncoming] = useState(() => decodeTripFromHash())
 
   const savedCount = useStore(selectSavedPlaces).length
+  const profile = useStore((s) => s.profile)
+  const navTrip = useStore((s) => (nav?.tripId ? selectTrip(s, nav.tripId) : null))
+
+  // One identity per tab, so two tabs act as two travellers sharing a trip.
+  // With a real backend this becomes the signed-in user's id.
+  const me = useMemo(() => {
+    let id = sessionStorage.getItem('trekov.memberId')
+    if (!id) {
+      id = `m_${Math.random().toString(36).slice(2, 9)}`
+      sessionStorage.setItem('trekov.memberId', id)
+    }
+    return { id, name: profile.name }
+  }, [profile.name])
+
+  const startNavigation = (placeId, tripId) => { setPlace(null); setNav({ placeId, tripId }) }
 
   // Hash routing keeps the back button working and needs no server rewrites on
   // GitHub Pages.
@@ -58,7 +76,7 @@ export default function App() {
 
   const screens = {
     map: <MapView onOpenPlace={setPlace} />,
-    trips: <Trips onOpenPlace={setPlace} open={openTrip} onOpen={setOpenTrip} />,
+    trips: <Trips onOpenPlace={setPlace} open={openTrip} onOpen={setOpenTrip} onNavigate={startNavigation} />,
     saved: <Saved onExplore={() => go('map')} onOpenPlace={setPlace} />,
     profile: <Profile onPost={() => setComposing(true)} />,
   }
@@ -73,7 +91,18 @@ export default function App() {
         <TabBar tab={tab} onChange={go} savedCount={savedCount} />
       </div>
 
-      {place && <PlaceSheet placeId={place} onClose={() => setPlace(null)} />}
+      {place && (
+        <PlaceSheet placeId={place} onClose={() => setPlace(null)} onNavigate={startNavigation} />
+      )}
+
+      {nav && getPlace(nav.placeId) && (
+        <Navigate
+          place={getPlace(nav.placeId)}
+          trip={navTrip}
+          me={me}
+          onClose={() => setNav(null)}
+        />
+      )}
 
       {composing && (
         <Composer

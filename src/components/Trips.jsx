@@ -7,14 +7,14 @@ import TripDetail from './TripDetail'
 const dateRange = (t) =>
   t.start && t.end ? `${t.start} → ${t.end}` : t.start || t.end || 'No dates yet'
 
-export default function Trips({ onOpenPlace, open, onOpen }) {
+export default function Trips({ onOpenPlace, open, onOpen, onNavigate }) {
   const trips = useStore(selectTrips)
   const [title, setTitle] = useState('')
   const [adding, setAdding] = useState(false)
 
   if (open) {
     const trip = trips.find((t) => t.id === open)
-    if (trip) return <TripDetail trip={trip} onBack={() => onOpen(null)} onOpenPlace={onOpenPlace} />
+    if (trip) return <TripDetail trip={trip} onBack={() => onOpen(null)} onOpenPlace={onOpenPlace} onNavigate={onNavigate} />
   }
 
   function submit(e) {

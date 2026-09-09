@@ -9,7 +9,7 @@ import Portal from './Portal'
 import PhotoViewer from './PhotoViewer'
 
 /** What you get when you tap a place on the map: its photos, newest first. */
-export default function PlaceSheet({ placeId, onClose }) {
+export default function PlaceSheet({ placeId, onClose, onNavigate }) {
   const [tab, setTab] = useState('recent')
   const [openPost, setOpenPost] = useState(null)
   const [tripMenu, setTripMenu] = useState(false)
@@ -64,8 +64,11 @@ export default function PlaceSheet({ placeId, onClose }) {
                 </span>
               )}
               <span className="text-mist">{place.postCount} photo{place.postCount === 1 ? '' : 's'}</span>
-              <a href={mapsUrl(place)} target="_blank" rel="noreferrer" className="text-brand font-medium ml-auto">
-                Open in Maps
+              <button onClick={() => onNavigate?.(place.id)} className="text-brand font-medium ml-auto">
+                Navigate
+              </button>
+              <a href={mapsUrl(place)} target="_blank" rel="noreferrer" className="text-mist">
+                Maps
               </a>
             </div>
 

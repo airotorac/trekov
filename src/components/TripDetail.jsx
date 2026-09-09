@@ -13,7 +13,7 @@ const MSG = {
   failed: 'Could not copy. Long-press the link to copy it by hand.',
 }
 
-export default function TripDetail({ trip, onBack, onOpenPlace }) {
+export default function TripDetail({ trip, onBack, onOpenPlace, onNavigate }) {
   const places = useStore((s) => s.places)
   const [msg, setMsg] = useState('')
   const [link, setLink] = useState('')
@@ -113,8 +113,12 @@ export default function TripDetail({ trip, onBack, onOpenPlace }) {
                   placeholder="Note — nights, booking, who to call…"
                   className={`${field} w-full mt-2 text-xs`}
                 />
-                <a href={mapsUrl(s.place)} target="_blank" rel="noreferrer"
-                   className="inline-block mt-2 text-xs text-brand font-medium">Open in Maps</a>
+                <div className="flex items-center gap-3 mt-2">
+                  <button onClick={() => onNavigate?.(s.placeId, trip.id)}
+                          className="text-xs text-brand font-semibold">Navigate here</button>
+                  <a href={mapsUrl(s.place)} target="_blank" rel="noreferrer"
+                     className="text-xs text-mist">Maps</a>
+                </div>
               </li>
             ))}
           </ol>
