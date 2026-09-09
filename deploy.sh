@@ -7,7 +7,10 @@
 #   gh auth refresh -s workflow   # then restore .github/workflows/deploy.yml
 set -euo pipefail
 
-REPO="airotorac/trekov"
+# Derived from the git remote, so moving the repo to another account needs no
+# edit here — just `git remote set-url origin`.
+REPO="$(git -C "$(cd "$(dirname "$0")" && pwd)" remote get-url origin \
+        | sed -E 's#(git@github.com:|https://github.com/)##; s#\.git$##')"
 BRANCH="gh-pages"
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 
