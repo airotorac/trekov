@@ -1,0 +1,10 @@
+<!doctype html><meta charset="utf-8">
+<body style="margin:0;background:#0B0F0E;display:grid;grid-template-columns:1fr 1fr;place-items:center;height:100vh;font:14px system-ui;color:#8FA39C">
+<div style="text-align:center"><div id="car"></div><p>Car — 160 / 44 / 28</p><div id="carS" style="display:flex;gap:14px;justify-content:center;align-items:center"></div></div>
+<div style="text-align:center"><div id="bike"></div><p>Bike — 160 / 44 / 28</p><div id="bikeS" style="display:flex;gap:14px;justify-content:center;align-items:center"></div></div>
+<script type="module">
+import { carSvg, bikeSvg } from '/src/lib/vehicleArt.js'
+car.innerHTML = carSvg('a',160); bike.innerHTML = bikeSvg('b',160)
+carS.innerHTML = carSvg('c',44)+carSvg('d',28)
+bikeS.innerHTML = bikeSvg('e',44)+bikeSvg('f',28)
+</script>

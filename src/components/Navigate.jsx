@@ -5,6 +5,7 @@ import { getRoute, instruction } from '../lib/route'
 import { colourFor, joinParty } from '../lib/party'
 import { downloadTiles, tilesForRoute } from '../lib/offline'
 import { BackIcon, CalendarIcon, Logo } from './Icons'
+import { VEHICLES, VEHICLE_SVG } from './VehicleIcons'
 import Portal from './Portal'
 
 const TILE = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
@@ -43,8 +44,14 @@ export default function Navigate({ place, trip, me, onClose }) {
   const [members, setMembers] = useState([])
   const [saving, setSaving] = useState(null)
   const [follow, setFollow] = useState(true)
+  const [vehicle, setVehicle] = useState(() => localStorage.getItem('trekov.vehicle') || 'car')
+  // Heading comes from consecutive fixes; before there are two, point at the
+  // destination so the marker is never arbitrarily oriented.
+  const [heading, setHeading] = useState(null)
+  const lastPos = useRef(null)
 
   const dest = useMemo(() => ({ lat: place.lat, lng: place.lng }), [place.lat, place.lng])
+  const bearingToDest = pos ? bearing(pos, dest) : null
 
   /* -------------------------------------------------------------- position */
   useEffect(() => {
@@ -58,6 +65,16 @@ export default function Navigate({ place, trip, me, onClose }) {
     )
     return () => navigator.geolocation.clearWatch(id)
   }, [])
+
+  useEffect(() => { localStorage.setItem('trekov.vehicle', vehicle) }, [vehicle])
+
+  useEffect(() => {
+    if (!pos) return
+    const prev = lastPos.current
+    // Ignore jitter: below ~5m the computed bearing is noise.
+    if (prev && distance(prev, pos) > 5) setHeading(bearing(prev, pos))
+    lastPos.current = pos
+  }, [pos])
 
   useEffect(() => {
     const on = () => setOnline(true)
@@ -91,18 +108,24 @@ export default function Navigate({ place, trip, me, onClose }) {
     return () => { line.remove(); casing.remove() }
   }, [route])
 
-  // Keep our own marker in step with the GPS.
+  // Our own marker is the chosen vehicle, rotated to the way we are moving.
   useEffect(() => {
     if (!map.current || !pos) return
+    const rotate = heading ?? bearingToDest ?? 0
+    const icon = L.divIcon({
+      className: 'tk-marker',
+      html: `<div class="tk-me" style="transform:rotate(${rotate}deg)">${VEHICLE_SVG[vehicle]}</div>`,
+      iconSize: [44, 44],
+      iconAnchor: [22, 22],
+    })
     if (!meMarker.current) {
-      meMarker.current = L.circleMarker([pos.lat, pos.lng], {
-        radius: 8, color: '#fff', weight: 3, fillColor: '#5AA9FF', fillOpacity: 1,
-      }).addTo(map.current)
+      meMarker.current = L.marker([pos.lat, pos.lng], { icon, zIndexOffset: 1000 }).addTo(map.current)
     } else {
       meMarker.current.setLatLng([pos.lat, pos.lng])
+      meMarker.current.setIcon(icon)
     }
     if (follow) map.current.setView([pos.lat, pos.lng], Math.max(map.current.getZoom(), 13), { animate: true })
-  }, [pos, follow])
+  }, [pos, follow, heading, vehicle, bearingToDest])
 
   /* ----------------------------------------------------------------- route */
   useEffect(() => {
@@ -136,7 +159,6 @@ export default function Navigate({ place, trip, me, onClose }) {
 
   /* ------------------------------------------------------------ derivation */
   const straight = pos ? distance(pos, dest) : null
-  const heading = pos ? bearing(pos, dest) : null
   const progress = pos && route ? remainingAlong(route.coordinates, pos) : null
   const remaining = progress?.left ?? straight
 
@@ -219,9 +241,9 @@ export default function Navigate({ place, trip, me, onClose }) {
             {/* Bearing arrow. Needs no network — this is the offline fallback. */}
             <div className="relative size-16 rounded-full border border-line grid place-items-center shrink-0">
               <span className="text-2xl leading-none transition-transform"
-                    style={{ transform: `rotate(${heading ?? 0}deg)` }} aria-hidden="true">↑</span>
+                    style={{ transform: `rotate(${bearingToDest ?? 0}deg)` }} aria-hidden="true">↑</span>
               <span className="absolute -bottom-2 text-[10px] text-mist bg-ink px-1">
-                {heading != null ? compassPoint(heading) : '—'}
+                {bearingToDest != null ? compassPoint(bearingToDest) : '—'}
               </span>
             </div>
 
@@ -241,6 +263,21 @@ export default function Navigate({ place, trip, me, onClose }) {
                 {routeState === 'idle' && 'Waiting for your location…'}
               </p>
             </div>
+          </div>
+
+          {/* Vehicle choice: drives the map marker, and is remembered. */}
+          <div className="flex items-center gap-2">
+            {VEHICLES.map(({ id, label, Icon }) => {
+              const on = vehicle === id
+              return (
+                <button key={id} onClick={() => setVehicle(id)} aria-pressed={on}
+                        className={`flex-1 flex items-center justify-center gap-2 rounded-2xl border py-2 transition
+                                    ${on ? 'border-brand bg-brand/12' : 'border-line hover:border-mist'}`}>
+                  <Icon size={34} id={`sel-${id}`} />
+                  <span className={`text-sm font-semibold ${on ? 'text-brand' : 'text-mist'}`}>{label}</span>
+                </button>
+              )
+            })}
           </div>
 
           {place.bestTime && (

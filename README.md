@@ -89,6 +89,7 @@ src/
   lib/route.js    OSRM routing with an offline cache
   lib/offline.js  satellite tile download into Cache Storage
   lib/party.js    live location sharing, pluggable transport
+  lib/vehicleArt.js  car/bike SVG artwork as strings (no JSX, so Leaflet can use it)
   lib/seed.js     demo places, posts and users
   components/     MapView, PlaceSheet, PhotoViewer, Trips, TripDetail,
                   SharedTrip, Saved, Profile, Composer, PinMap, TabBar,
@@ -180,3 +181,8 @@ CHROME="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 - `brand/avatar-mark.png` (512×512) — mark only; use this wherever the avatar
   renders below ~100px, where a wordmark turns to mush
 - `public/icon-192.png` / `icon-512.png` — PWA icons, from `brand/app-icon.svg`
+
+To eyeball the vehicle icons at several sizes, copy `brand/render/vehicles.html`
+into `public/` while the dev server is running and open `/vehicles.html`; it
+imports `src/lib/vehicleArt.js` directly. Delete it before deploying — it is a
+dev aid, not part of the app.
