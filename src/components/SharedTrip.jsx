@@ -8,7 +8,8 @@ export default function SharedTrip({ trip, onAccept, onDismiss }) {
 
   return (
     <Portal>
-      <div className="fixed inset-0 z-[1300] bg-ink flex flex-col" role="dialog" aria-label="Shared trip">
+      <div className="fixed inset-0 z-[1300] bg-black flex justify-center" role="dialog" aria-label="Shared trip">
+        <div className="w-full max-w-[520px] h-full bg-ink flex flex-col sm:border-x sm:border-line">
         <header className="flex items-center gap-2 px-4 h-14 border-b border-line shrink-0">
           <Logo size={20} />
           <span className="font-semibold">Shared with you</span>
@@ -49,6 +50,7 @@ export default function SharedTrip({ trip, onAccept, onDismiss }) {
           <button onClick={onAccept} className="flex-1 rounded-full bg-brand text-ink py-3 text-sm font-semibold">
             Save to my trips
           </button>
+        </div>
         </div>
       </div>
     </Portal>

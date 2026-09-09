@@ -28,7 +28,8 @@ export default function PhotoViewer({ postId, onClose }) {
 
   return (
     <Portal>
-      <div className="fixed inset-0 z-[1100] bg-ink flex flex-col" role="dialog" aria-label="Photo">
+      <div className="fixed inset-0 z-[1100] bg-black flex justify-center" role="dialog" aria-label="Photo">
+        <div className="w-full max-w-[520px] h-full bg-ink flex flex-col sm:border-x sm:border-line">
         <header className="flex items-center gap-3 px-4 h-14 border-b border-line shrink-0">
           <button onClick={onClose} className="text-mist hover:text-white" aria-label="Close"><CloseIcon size={22} /></button>
           <img src={author.avatar} alt="" className="size-8 rounded-full object-cover" />
@@ -92,6 +93,7 @@ export default function PhotoViewer({ postId, onClose }) {
           <button type="submit" disabled={!text.trim()} aria-label="Post comment"
                   className="text-brand disabled:text-mist disabled:opacity-50 p-1"><SendIcon size={22} /></button>
         </form>
+        </div>
       </div>
     </Portal>
   )

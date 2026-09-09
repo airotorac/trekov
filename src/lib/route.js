@@ -80,7 +80,7 @@ export function instruction(step) {
   const straight = step.modifier === 'straight' || !step.modifier
   const dir = step.modifier && !straight ? ` ${step.modifier}` : ''
   switch (step.type) {
-    case 'depart':   return step.name ? `Head along ${step.name}` : 'Start'
+    case 'depart':   return step.name ? `Set off along ${step.name}` : 'Set off toward your route'
     case 'arrive':   return 'Arrive at your destination'
     case 'turn':     return straight ? `Continue straight${road}` : `Turn${dir}${road}`
     case 'merge':    return `Merge${dir}${road}`

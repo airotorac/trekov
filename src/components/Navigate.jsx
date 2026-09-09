@@ -234,7 +234,8 @@ export default function Navigate({ place, trip, me, onClose }) {
 
   return (
     <Portal>
-      <div className="fixed inset-0 z-[1400] bg-ink flex flex-col" role="dialog" aria-label={`Navigate to ${place.name}`}>
+      <div className="fixed inset-0 z-[1400] bg-black flex justify-center" role="dialog" aria-label={`Navigate to ${place.name}`}>
+        <div className="w-full max-w-[520px] h-full bg-ink flex flex-col sm:border-x sm:border-line">
         <header className="flex items-center gap-2 px-3 h-14 border-b border-line shrink-0">
           <button onClick={onClose} className="text-mist hover:text-white p-1" aria-label="Stop navigating">
             <BackIcon size={22} />
@@ -243,6 +244,13 @@ export default function Navigate({ place, trip, me, onClose }) {
             <p className="font-semibold leading-tight truncate">{place.name}</p>
             <p className="text-xs text-mist truncate">{place.region}</p>
           </div>
+          {/* Guidance starts as soon as this screen opens — say so, since there
+              is no button to press and people look for one. */}
+          <span className={`flex items-center gap-1.5 text-[10px] font-semibold rounded-full px-2 py-1 shrink-0
+                            ${pos ? 'text-brand bg-brand/15' : 'text-mist bg-raised'}`}>
+            <span className={`size-1.5 rounded-full ${pos ? 'bg-brand animate-pulse' : 'bg-mist'}`} />
+            {pos ? 'NAVIGATING' : 'WAITING FOR GPS'}
+          </span>
           {!online && (
             <span className="text-[10px] font-semibold text-sun bg-sun/15 rounded-full px-2 py-1 shrink-0">OFFLINE</span>
           )}
@@ -255,6 +263,7 @@ export default function Navigate({ place, trip, me, onClose }) {
           <div className="absolute inset-x-3 top-3 z-[500] space-y-2">
             {nextStep && (
               <div className="rounded-2xl bg-ink/92 backdrop-blur-xl border border-line p-3">
+                <p className="text-[10px] uppercase tracking-[0.14em] text-brand mb-1">Next</p>
                 <p className="text-sm font-semibold leading-tight">{instruction(nextStep)}</p>
                 <p className="text-xs text-mist mt-0.5">in {formatDistance(nextStep.away)}</p>
               </div>
@@ -368,6 +377,7 @@ export default function Navigate({ place, trip, me, onClose }) {
             )}
             {saving?.error && <span className="text-xs text-rose">{saving.error}</span>}
           </div>
+        </div>
         </div>
       </div>
     </Portal>
