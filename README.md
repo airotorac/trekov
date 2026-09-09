@@ -166,6 +166,35 @@ price we invented**: no partner APIs exist yet, so the app tracks what you
 booked elsewhere. When partnerships land, `SEARCH` in `Bookings.jsx` becomes an
 API call per provider and the rest of the component is unchanged.
 
+## Nearby businesses, and how they are ranked
+
+The Discover tab shows what is around you across six categories: stays,
+restaurants, street food, bike repair, car repair and other attractions. Two
+sources, deliberately ordered:
+
+1. **Partner listings** from the `listings` table — businesses paying to be
+   listed. Marked, and always first.
+2. **Google Places** — so a category is never empty in a town nobody has
+   signed up in yet.
+
+That ordering *is* the product: the subscription buys placement above
+commodity data, not the existence of a result. Nothing is ever invented; an
+empty category shows as empty and says so.
+
+`subscribed_until` is enforced in the read policy, so a lapsed listing stops
+being served without anyone remembering to delete it. Billing state is
+deliberately not writable by the business — `manage_own_listing` lets them
+edit their details, not mark themselves paid or verified.
+
+Search uses Places **Text Search**, not `includedTypes`: Google has no type for
+"bike repair" or "street food stall", and those are exactly the categories a
+travel app in India needs. Results are cached per category and rounded
+location — Places is billed per request and costs more than Geocoding.
+
+**This adds a third Google API.** If you restrict the key, the allowed list
+must include Maps JavaScript, Directions, Geocoding *and* Places, or Discover
+goes quiet.
+
 ## Supabase: accounts and sync
 
 Set two env vars in `.env.local` and the app gains accounts, cross-device sync

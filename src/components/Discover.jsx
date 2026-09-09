@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import {
   getPlace, getUser, markNotificationsRead, selectAttractionOfMonth, selectMostVisited,
   selectNewPlaces, selectNotifications, toggleSavePlace, useStore,
@@ -5,6 +6,7 @@ import {
 import { ago, timeAgo } from '../lib/format'
 import { CalendarIcon, Logo, NavIcon, SaveIcon } from './Icons'
 import Media from './Media'
+import Nearby from './Nearby'
 
 const MONTH = new Date().toLocaleString(undefined, { month: 'long' })
 
@@ -15,10 +17,24 @@ function Thumb({ place, className = 'size-16 rounded-xl' }) {
 }
 
 export default function Discover({ onOpenPlace, onNavigate }) {
+  // Prefer the traveller's own position; fall back to the month's attraction
+  // so the section is useful before location permission is granted.
+  const [gps, setGps] = useState(null)
+  useEffect(() => {
+    if (!navigator.geolocation) return
+    const id = navigator.geolocation.getCurrentPosition(
+      (p) => setGps({ lat: p.coords.latitude, lng: p.coords.longitude }),
+      () => {},
+      { maximumAge: 300000, timeout: 8000 },
+    )
+    return () => id && navigator.geolocation.clearWatch?.(id)
+  }, [])
   const attraction = useStore(selectAttractionOfMonth)
   const mostVisited = useStore(selectMostVisited)
   const newPlaces = useStore(selectNewPlaces)
   const notifications = useStore(selectNotifications)
+  const here = gps ?? (attraction ? { lat: attraction.lat, lng: attraction.lng } : null)
+  const hereName = gps ? 'you' : attraction?.name
 
   return (
     <>
@@ -109,6 +125,9 @@ export default function Discover({ onOpenPlace, onNavigate }) {
             </ol>
           </section>
         )}
+
+        {/* Around wherever the traveller is, or the month's attraction. */}
+        <Nearby centre={here} centreName={hereName} />
 
         {/* --------------------------------------------------- new places */}
         <section>

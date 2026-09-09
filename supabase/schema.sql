@@ -200,3 +200,46 @@ do $$ begin
   alter publication supabase_realtime add table places;
   alter publication supabase_realtime add table posts;
 exception when duplicate_object then null; end $$;
+
+-- =====================================================================
+-- Partner listings
+--
+-- Businesses that pay to be listed. Everything here is shown ABOVE the
+-- results Google returns, which is the whole product: the subscription buys
+-- placement above commodity data, not the existence of a result.
+--
+-- `subscribed_until` is enforced in the read policy, so a lapsed listing
+-- stops being served without anyone having to remember to delete it.
+-- =====================================================================
+create table if not exists listings (
+  id               text primary key,
+  owner_id         uuid references profiles(id) on delete set null,
+  category         text not null check (category in
+                     ('hotel','food','street_food','bike_service','car_service','attraction')),
+  name             text not null,
+  description      text not null default '',
+  phone            text not null default '',
+  address          text not null default '',
+  lat              double precision not null,
+  lng              double precision not null,
+  url              text not null default '',
+  photo_path       text not null default '',
+  plan             text not null default 'basic',
+  subscribed_until date,
+  verified         boolean not null default false,
+  created_at       timestamptz not null default now()
+);
+create index if not exists listings_category_idx on listings (category);
+create index if not exists listings_location_idx on listings (lat, lng);
+
+alter table listings enable row level security;
+
+do $$ begin
+  -- Only live subscriptions are visible.
+  create policy read_live_listings on listings for select
+    using (subscribed_until is null or subscribed_until >= current_date);
+  -- A business edits its own entry; billing state is not theirs to set, so
+  -- keep `subscribed_until` and `verified` to server-side/admin updates.
+  create policy manage_own_listing on listings for all
+    using (auth.uid() = owner_id) with check (auth.uid() = owner_id);
+exception when duplicate_object then null; end $$;
