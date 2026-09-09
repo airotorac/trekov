@@ -41,17 +41,33 @@ npm run dev
 
 ## Deploy
 
-`.github/workflows/deploy.yml` builds and publishes to GitHub Pages on every push
-to `main`. `public/CNAME` pins the custom domain to `trekov.in`.
+```bash
+npm run deploy
+```
 
-DNS at your registrar — the same records used for vayuveer.in:
+Builds and force-pushes `dist/` to the `gh-pages` branch, which GitHub Pages
+serves. `public/CNAME` pins the custom domain to `trekov.in`.
+
+GitHub Actions would be tidier, but pushing a workflow file needs the `workflow`
+token scope. To switch later:
+
+```bash
+gh auth refresh -s workflow
+```
+
+then restore a `.github/workflows/deploy.yml` that runs `npm ci && npm run build`
+and uploads `dist` as a Pages artifact.
+
+### DNS
+
+At GoDaddy, on `trekov.in`:
 
 ```
 A     @     185.199.108.153
 A     @     185.199.109.153
 A     @     185.199.110.153
 A     @     185.199.111.153
-CNAME www   <your-github-username>.github.io
+CNAME www   airotorac.github.io
 ```
 
 Point `trekov.com` at the same place with a registrar-level forward to `trekov.in`.
