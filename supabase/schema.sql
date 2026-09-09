@@ -214,8 +214,7 @@ exception when duplicate_object then null; end $$;
 create table if not exists listings (
   id               text primary key,
   owner_id         uuid references profiles(id) on delete set null,
-  category         text not null check (category in
-                     ('hotel','food','street_food','bike_service','car_service','attraction')),
+  category         text not null,
   name             text not null,
   description      text not null default '',
   phone            text not null default '',
@@ -229,6 +228,12 @@ create table if not exists listings (
   verified         boolean not null default false,
   created_at       timestamptz not null default now()
 );
+-- Stated separately and re-applied on every run, so adding a category later
+-- is a schema edit rather than a migration nobody remembers to write.
+alter table listings drop constraint if exists listings_category_check;
+alter table listings add constraint listings_category_check check (category in
+  ('hotel','food','street_food','bike_service','car_service','rental','attraction'));
+
 create index if not exists listings_category_idx on listings (category);
 create index if not exists listings_location_idx on listings (lat, lng);
 

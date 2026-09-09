@@ -510,8 +510,14 @@ export async function deletePost(id) {
 
 /* ---------------------------------- trips --------------------------------- */
 
-export function createTrip({ title, start = '', end = '', stops = [], notes = '' }) {
-  const trip = { id: newId('t'), title: title.trim() || 'Untitled trip', start, end, notes, stops, bookings: [] }
+export function createTrip({ title, kind = 'solo', start = '', end = '', stops = [], notes = '' }) {
+  const trip = {
+    id: newId('t'), title: title.trim() || 'Untitled trip',
+    // 'solo' or 'group' — a group trip carries companions and shares live
+    // position while everyone is navigating it.
+    kind,
+    members: [], start, end, notes, stops, bookings: [],
+  }
   set({ ...state, trips: [trip, ...state.trips] })
   return trip.id
 }
@@ -519,6 +525,20 @@ export function createTrip({ title, start = '', end = '', stops = [], notes = ''
 const patchTrip = (id, fn) => set({ ...state, trips: state.trips.map((t) => (t.id === id ? fn(t) : t)) })
 
 export const updateTrip = (id, patch) => patchTrip(id, (t) => ({ ...t, ...patch }))
+
+/** Companions on a group trip. Stored on the trip; mirrored to Supabase when signed in. */
+export function addMember(tripId, person) {
+  patchTrip(tripId, (t) => (
+    (t.members ?? []).some((m) => m.id === person.id)
+      ? t
+      : { ...t, kind: 'group', members: [...(t.members ?? []), person] }
+  ))
+}
+
+export const removeMember = (tripId, personId) =>
+  patchTrip(tripId, (t) => ({ ...t, members: (t.members ?? []).filter((m) => m.id !== personId) }))
+
+export const selectMembers = memo((s, tripId) => s.trips.find((t) => t.id === tripId)?.members ?? [])
 export const deleteTrip = (id) => set({ ...state, trips: state.trips.filter((t) => t.id !== id) })
 
 export function addStop(tripId, placeId) {
@@ -553,6 +573,8 @@ export function importTrip(trip) {
     id: newId('t'),
     title: trip.title, start: trip.start ?? '', end: trip.end ?? '', notes: trip.notes ?? '',
     stops: (trip.stops ?? []).filter((s) => places[s.placeId]),
+    kind: trip.kind ?? 'solo',
+    members: [],
     bookings: [],
   }
   set({ ...state, places, trips: [copy, ...state.trips] })

@@ -21,6 +21,7 @@ chronological timeline.
 | Screen | Behaviour |
 |---|---|
 | **Search** | Trekov's own places first, then anywhere in the world via the Geocoding API — a geocoded hit flies there and drops a pin, but only becomes a place once someone photographs it |
+| **Solo / group trips** | A trip is one or the other. A group trip takes companions — invited by handle inside the app, or by a link sent over WhatsApp, Messages or email — and shares live position while everyone navigates |
 | **Group trips** | Companions share live position over Supabase Realtime; each appears as their own vehicle, in their colour, pointing the way they are driving, with their name above it |
 | **Multi-stop routing** | A trip routes through every remaining stop with per-leg distance, duration and arrival time |
 | **Map** | Satellite map with a marker per place, thumbnail and photo count. Markers cluster at low zoom and split as you zoom in. Search flies to a place. |
@@ -168,9 +169,9 @@ API call per provider and the rest of the component is unchanged.
 
 ## Nearby businesses, and how they are ranked
 
-The Discover tab shows what is around you across six categories: stays,
-restaurants, street food, bike repair, car repair and other attractions. Two
-sources, deliberately ordered:
+The Discover tab shows what is around you across seven categories, entered
+through cards rather than a chip row: stays, restaurants, street food, bike,
+car, rentals and other attractions. Two sources, deliberately ordered:
 
 1. **Partner listings** from the `listings` table — businesses paying to be
    listed. Marked, and always first.

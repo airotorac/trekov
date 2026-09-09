@@ -12,6 +12,7 @@ export default function Trips({ onOpenPlace, open, onOpen, onNavigate }) {
   const saved = useStore(selectSavedPlaces)
   const [title, setTitle] = useState('')
   const [adding, setAdding] = useState(false)
+  const [kind, setKind] = useState('solo')
 
   if (open) {
     const trip = trips.find((t) => t.id === open)
@@ -21,7 +22,7 @@ export default function Trips({ onOpenPlace, open, onOpen, onNavigate }) {
   function submit(e) {
     e.preventDefault()
     if (!title.trim()) return
-    const id = createTrip({ title })
+    const id = createTrip({ title, kind })
     setTitle(''); setAdding(false); onOpen(id)
   }
 
@@ -37,14 +38,29 @@ export default function Trips({ onOpenPlace, open, onOpen, onNavigate }) {
       </header>
 
       {adding && (
-        <form onSubmit={submit} className="p-4 flex gap-2 border-b border-line">
-          <input autoFocus value={title} onChange={(e) => setTitle(e.target.value)}
-                 placeholder="Trip name — “Spiti in June”"
-                 className="flex-1 bg-raised rounded-xl px-3.5 py-2.5 text-sm outline-none placeholder:text-mist focus:ring-2 focus:ring-brand/50" />
-          <button type="submit" disabled={!title.trim()}
-                  className="rounded-xl bg-brand text-ink font-semibold text-sm px-4 disabled:opacity-40">
-            Create
-          </button>
+        <form onSubmit={submit} className="p-4 space-y-3 border-b border-line">
+          <div className="grid grid-cols-2 gap-2">
+            {[
+              ['solo', 'Solo trip', 'Just you'],
+              ['group', 'Group trip', 'Ride together, live'],
+            ].map(([id, label, blurb]) => (
+              <button key={id} type="button" onClick={() => setKind(id)} aria-pressed={kind === id}
+                      className={`rounded-2xl border p-3 text-left transition
+                                  ${kind === id ? 'border-brand bg-brand/10' : 'border-line hover:border-mist'}`}>
+                <span className={`block text-sm font-semibold ${kind === id ? 'text-brand' : ''}`}>{label}</span>
+                <span className="block text-[11px] text-mist">{blurb}</span>
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <input autoFocus value={title} onChange={(e) => setTitle(e.target.value)}
+                   placeholder="Trip name — “Spiti in June”"
+                   className="flex-1 bg-raised rounded-xl px-3.5 py-2.5 text-sm outline-none placeholder:text-mist focus:ring-2 focus:ring-brand/50" />
+            <button type="submit" disabled={!title.trim()}
+                    className="rounded-xl bg-brand text-ink font-semibold text-sm px-4 disabled:opacity-40">
+              Create
+            </button>
+          </div>
         </form>
       )}
 
@@ -107,7 +123,15 @@ export default function Trips({ onOpenPlace, open, onOpen, onNavigate }) {
                         className="rise w-full text-left bg-surface border border-line rounded-2xl p-4 hover:border-brand/50 transition">
                   <div className="flex items-start gap-3">
                     <div className="min-w-0 flex-1">
-                      <p className="font-semibold leading-tight truncate">{t.title}</p>
+                      <p className="font-semibold leading-tight truncate">
+                        {t.title}
+                        {t.kind === 'group' && (
+                          <span className="ml-2 rounded-full bg-brand/15 text-brand text-[9px] font-bold
+                                           uppercase tracking-[0.1em] px-1.5 py-0.5 align-middle">
+                            Group{(t.members?.length ?? 0) > 0 ? ` · ${t.members.length}` : ''}
+                          </span>
+                        )}
+                      </p>
                       <p className="text-xs text-mist mt-0.5">{dateRange(t)}</p>
                     </div>
                     <span className="text-xs text-mist shrink-0">

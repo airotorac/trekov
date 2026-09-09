@@ -6,6 +6,7 @@ import { encodeTrip, shareLink } from '../lib/share'
 import { mapsUrl } from '../lib/format'
 import { BackIcon, CalendarIcon, CloseIcon, SendIcon } from './Icons'
 import Bookings from './Bookings'
+import Invite from './Invite'
 
 const MSG = {
   shared: 'Shared.',
@@ -124,6 +125,18 @@ export default function TripDetail({ trip, onBack, onOpenPlace, onNavigate }) {
               </li>
             ))}
           </ol>
+        )}
+
+        {trip.kind === 'group' ? (
+          <Invite trip={trip} />
+        ) : (
+          <button onClick={() => updateTrip(trip.id, { kind: 'group' })}
+                  className="w-full rounded-2xl border border-line hover:border-brand/60 transition p-3 text-left">
+            <span className="block text-sm font-semibold">Make this a group trip</span>
+            <span className="block text-[11px] text-mist mt-0.5">
+              Invite people and see each other live on the map while you travel.
+            </span>
+          </button>
         )}
 
         <Bookings trip={trip} destination={stops.at(-1)?.place?.name ?? ''} />

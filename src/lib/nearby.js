@@ -27,8 +27,9 @@ export const CATEGORIES = [
   { id: 'hotel',        label: 'Stays',       blurb: 'Hotels and guest houses',   query: 'hotel or guest house',         icon: '🛏' },
   { id: 'food',         label: 'Restaurants', blurb: 'Sit-down places to eat',    query: 'restaurant',                   icon: '🍽' },
   { id: 'street_food',  label: 'Street food', blurb: 'Stalls and local vendors',  query: 'street food stall',            icon: '🥘' },
-  { id: 'bike_service', label: 'Bike repair', blurb: 'Spares and servicing',      query: 'motorcycle repair and spares', icon: '🏍' },
-  { id: 'car_service',  label: 'Car repair',  blurb: 'Garages and accessories',   query: 'car repair and accessories',   icon: '🚗' },
+  { id: 'bike_service', label: 'Bike',        blurb: 'Service, spares, accessories', query: 'motorcycle service spares and accessories', icon: '🏍' },
+  { id: 'car_service',  label: 'Car',         blurb: 'Garages and accessories',      query: 'car repair garage and accessories',        icon: '🚗' },
+  { id: 'rental',       label: 'Rentals',     blurb: 'Bike, car and taxi hire',      query: 'bike and car rental service',              icon: '🔑' },
   { id: 'attraction',   label: 'Attractions', blurb: 'Other things to see',       query: 'tourist attraction',           icon: '📍' },
 ]
 
