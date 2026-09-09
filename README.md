@@ -163,6 +163,50 @@ price we invented**: no partner APIs exist yet, so the app tracks what you
 booked elsewhere. When partnerships land, `SEARCH` in `Bookings.jsx` becomes an
 API call per provider and the rest of the component is unchanged.
 
+## Supabase: accounts and sync
+
+Set two env vars in `.env.local` and the app gains accounts, cross-device sync
+and shared trips. Leave them out and it is exactly what it was — local-first,
+offline-capable, no account. **That fallback is load-bearing**: offline
+navigation and the tile cache depend on the app working with no network and no
+session, so remote is a mirror of local, never a prerequisite.
+
+```
+VITE_SUPABASE_URL=https://<project>.supabase.co
+VITE_SUPABASE_ANON_KEY=<anon key>
+```
+
+### Setup
+
+1. Create a project at [supabase.com](https://supabase.com) (free tier is plenty).
+2. **SQL Editor → New query** → paste all of `supabase/schema.sql` → **Run**.
+   It is idempotent, so re-running is safe.
+3. **Project Settings → API** → copy the Project URL and the `anon` public key
+   into `.env.local`. The anon key is meant to be public — row level security
+   is what protects the data, which is why every table has policies.
+4. **Authentication → URL Configuration** → add `https://trekov.com/app/` and
+   `http://localhost:5173/app/` as redirect URLs, or magic links will bounce.
+
+### What the schema does
+
+Ids are `text`, not `uuid`, because the client generates them — a row created
+offline keeps its id when it syncs. Public tables (places, posts, reviews) are
+world-readable so the map is browsable without an account; writes are limited
+to your own rows. **Saves are private** — a wishlist is nobody else's business.
+Trips are visible to their owner and to invited companions via `trip_members`.
+Photos go to a public `photos` bucket under `<user-id>/`, so nobody can write
+into anyone else's folder.
+
+### Sync model
+
+`lib/sync.js` pushes what you own, pulls a snapshot, and merges. Anything of
+yours not yet on the server survives the merge — a photo taken in a tunnel must
+not vanish because the pull that followed did not include it. Conflicts are
+last-write-wins per row, which is right for photos, reviews and a personal
+trip; genuinely collaborative trip editing would need revisiting.
+
+Sign-in is an emailed magic link. No password is ever typed into this app.
+
 ## Navigation, offline and live sharing
 
 **Routing** prefers Google Directions (car: `DRIVING` with live-traffic ETA;

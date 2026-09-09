@@ -4,6 +4,9 @@ import {
   selectUnreadCount, useStore,
 } from './lib/store'
 import { decodeTripFromHash } from './lib/share'
+import { currentAccount, hasSupabase, onAuthChange } from './lib/auth'
+import { setAccount } from './lib/store'
+import { stopWatching, syncNow, watchRemote } from './lib/sync'
 import { NEW_PLACE, broadcastTransport } from './lib/notify'
 import Composer from './components/Composer'
 import Discover from './components/Discover'
@@ -60,6 +63,21 @@ export default function App() {
     }
     window.addEventListener('hashchange', sync)
     return () => window.removeEventListener('hashchange', sync)
+  }, [])
+
+  // Sign-in drives sync: pull what is on the server, push what is not, then
+  // watch for other people's changes.
+  useEffect(() => {
+    if (!hasSupabase) return
+    let live = true
+    const apply = (account) => {
+      if (!live) return
+      setAccount(account)
+      if (account) { syncNow(account.id); watchRemote(account.id) } else { stopWatching() }
+    }
+    currentAccount().then(apply)
+    const off = onAuthChange(apply)
+    return () => { live = false; off(); stopWatching() }
   }, [])
 
   // Announcements of new places. Cross-tab today; the same interface reaches

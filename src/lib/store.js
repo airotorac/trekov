@@ -15,6 +15,14 @@ import { putBlob, delBlob } from './media'
 const KEY = 'trekov.state.v2'
 const ME = 'u_me'
 
+/**
+ * Ids must be unique across devices, not just within one.
+ * `Date.now()` collides the moment two people post in the same millisecond —
+ * fine while everything was local, wrong as soon as rows sync to Postgres.
+ */
+export const newId = (prefix) =>
+  `${prefix}_${globalThis.crypto?.randomUUID?.() ?? `${Date.now()}${Math.random().toString(36).slice(2, 10)}`}`
+
 function initial() {
   return {
     users: USERS,
@@ -28,7 +36,53 @@ function initial() {
     // One review per person per place: { id, placeId, userId, ratings, note, createdAt }
     reviews: SEED_REVIEWS,
     profile: { name: 'You', handle: 'you', bio: 'Collecting places, one at a time.', avatar: USERS.u_me.avatar },
+    // Who is signed in, and how the last sync went. Null account = local only.
+    account: null,
+    sync: { status: 'idle', at: null, error: null },
   }
+}
+
+/** Raw state, for the sync layer. Components use useStore instead. */
+export const getState = () => state
+
+export function setSyncState(patch) {
+  set({ ...state, sync: { ...state.sync, ...patch } })
+}
+
+export function setAccount(account) {
+  set({
+    ...state,
+    account,
+    profile: account
+      ? { ...state.profile, name: account.name ?? state.profile.name, handle: account.handle ?? state.profile.handle }
+      : state.profile,
+  })
+}
+
+/**
+ * Fold a server snapshot into local state.
+ *
+ * Anything of mine that has not reached the server yet is kept: a photo taken
+ * in a tunnel must not vanish because the pull that followed did not include
+ * it. Remote wins for everything else.
+ */
+export function applyRemote(remote, userId) {
+  const mineLocally = (rows, key) => rows.filter((r) => r[key] === ME || r[key] === userId)
+  const remoteIds = new Set(remote.posts.map((p) => p.id))
+  const unsynced = mineLocally(state.posts, 'authorId').filter((p) => !remoteIds.has(p.id))
+
+  const remoteReviewIds = new Set(remote.reviews.map((r) => r.id))
+  const unsyncedReviews = mineLocally(state.reviews, 'userId').filter((r) => !remoteReviewIds.has(r.id))
+
+  set({
+    ...state,
+    users: { ...state.users, ...remote.users },
+    places: { ...state.places, ...remote.places },
+    posts: [...unsynced, ...remote.posts],
+    reviews: [...unsyncedReviews, ...remote.reviews],
+    savedPlaces: remote.savedPlaces,
+    trips: remote.trips,
+  })
 }
 
 function load() {
@@ -87,6 +141,10 @@ export function useStore(selector = (s) => s) {
 /* --------------------------------- reads ---------------------------------- */
 
 export const meId = ME
+/** The id rows are written under: the account when signed in, else local. */
+export const currentUserId = () => state.account?.id ?? ME
+/** True for rows authored by this person, local or remote id. */
+export const isMine = (id) => id === ME || (state.account && id === state.account.id)
 export const getUser = (id) => state.users[id] ?? { id, name: 'Traveller', handle: id, avatar: '' }
 export const getPlace = (id) => state.places[id]
 export const getPost = (id) => state.posts.find((p) => p.id === id)
@@ -293,7 +351,7 @@ export const selectRatingsAt = memo((s, placeId) => {
 export function upsertReview(placeId, { ratings, note, facts }) {
   const existing = state.reviews.find((r) => r.placeId === placeId && r.userId === ME)
   const review = {
-    id: existing?.id ?? `r_${Date.now()}`,
+    id: existing?.id ?? newId('r'),
     placeId, userId: ME,
     ratings: { ...existing?.ratings, ...ratings },
     facts: { ...existing?.facts, ...facts },
@@ -344,7 +402,7 @@ export function toggleLike(postId) {
 export function addComment(postId, text) {
   const body = text.trim()
   if (!body) return
-  const comment = { id: `c_${Date.now()}`, userId: ME, text: body, createdAt: new Date().toISOString() }
+  const comment = { id: newId('c'), userId: ME, text: body, createdAt: new Date().toISOString() }
   set({
     ...state,
     posts: state.posts.map((p) => (p.id === postId ? { ...p, comments: [...p.comments, comment] } : p)),
@@ -364,7 +422,7 @@ export function toggleSavePlace(placeId) {
 }
 
 export function upsertPlace(place) {
-  const id = place.id ?? `pl_${Date.now()}`
+  const id = place.id ?? newId('pl')
   const existing = state.places[id]
   set({
     ...state,
@@ -387,7 +445,7 @@ export function upsertPlace(place) {
 /** Record an announcement locally. `incoming` marks one that arrived from elsewhere. */
 export function addNotification({ type, placeId, by, at, id }, { incoming = false } = {}) {
   const note = {
-    id: id ?? `n_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+    id: id ?? newId('n'),
     type, placeId, by,
     at: at ?? new Date().toISOString(),
     // Your own actions are not news to you.
@@ -412,7 +470,7 @@ export function adoptPlace(place) {
 /* -------------------------------- bookings -------------------------------- */
 
 export function addBooking(tripId, booking) {
-  const entry = { id: `b_${Date.now()}`, ...booking }
+  const entry = { id: newId('b'), ...booking }
   patchTrip(tripId, (t) => ({ ...t, bookings: [...(t.bookings ?? []), entry] }))
   return entry.id
 }
@@ -431,7 +489,7 @@ export const removeBooking = (tripId, bookingId) =>
  * win rather than something that destroys what came before.
  */
 export async function createPost({ file, placeId, caption, tags }) {
-  const id = `p_${Date.now()}`
+  const id = newId('p')
   await putBlob(id, file)
   set({
     ...state,
@@ -453,7 +511,7 @@ export async function deletePost(id) {
 /* ---------------------------------- trips --------------------------------- */
 
 export function createTrip({ title, start = '', end = '', stops = [], notes = '' }) {
-  const trip = { id: `t_${Date.now()}`, title: title.trim() || 'Untitled trip', start, end, notes, stops, bookings: [] }
+  const trip = { id: newId('t'), title: title.trim() || 'Untitled trip', start, end, notes, stops, bookings: [] }
   set({ ...state, trips: [trip, ...state.trips] })
   return trip.id
 }
@@ -492,7 +550,7 @@ export function importTrip(trip) {
   const places = { ...state.places }
   for (const p of trip.places ?? []) if (!places[p.id]) places[p.id] = p
   const copy = {
-    id: `t_${Date.now()}`,
+    id: newId('t'),
     title: trip.title, start: trip.start ?? '', end: trip.end ?? '', notes: trip.notes ?? '',
     stops: (trip.stops ?? []).filter((s) => places[s.placeId]),
     bookings: [],

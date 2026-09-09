@@ -1,5 +1,6 @@
 import { deletePost, getPlace, resetAll, selectMyPosts, selectSavedPlaces, selectTrips, useStore } from '../lib/store'
 import { TrashIcon, Wordmark } from './Icons'
+import Account from './Account'
 import Media from './Media'
 
 export default function Profile({ onPost }) {
@@ -26,7 +27,9 @@ export default function Profile({ onPost }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 mx-5 rounded-2xl border border-line bg-surface divide-x divide-line">
+      <Account />
+
+      <div className="grid grid-cols-3 mx-5 mt-4 rounded-2xl border border-line bg-surface divide-x divide-line">
         {stats.map(([label, value]) => (
           <div key={label} className="py-3 text-center">
             <p className="text-lg font-semibold tabular-nums">{value}</p>
