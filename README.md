@@ -1,6 +1,6 @@
 # Trekov
 
-**trekov.in · trekov.com**
+**trekov.com** (canonical) · trekov.in redirects to it
 
 A map of places worth going. Zoom into anywhere, see what people actually shot
 there, save the place to your To Visit list, and build a trip you can send to
@@ -49,7 +49,7 @@ npm run deploy
 ```
 
 Builds and force-pushes `dist/` to the `gh-pages` branch, which GitHub Pages
-serves. `public/CNAME` pins the custom domain to `trekov.in`.
+serves. `public/CNAME` pins the custom domain to `trekov.com`.
 
 GitHub Actions would be tidier, but pushing a workflow file needs the `workflow`
 token scope. To switch later:
@@ -63,7 +63,7 @@ and uploads `dist` as a Pages artifact.
 
 ### DNS
 
-At GoDaddy, on `trekov.in`:
+At GoDaddy, on `trekov.com`:
 
 ```
 A     @     185.199.108.153
@@ -73,7 +73,8 @@ A     @     185.199.111.153
 CNAME www   airotorac.github.io
 ```
 
-Point `trekov.com` at the same place with a registrar-level forward to `trekov.in`.
+`trekov.in` is a registrar-level forward to `https://trekov.com`, so the `.com`
+is the only domain GitHub Pages serves.
 
 ## Architecture
 

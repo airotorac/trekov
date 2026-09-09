@@ -24,4 +24,4 @@ git -c user.email="punit13690@gmail.com" -c user.name="Punit" commit -qm "Deploy
 git push -qf "https://x-access-token:$(gh auth token)@github.com/$REPO.git" "$BRANCH"
 rm -rf .git
 
-echo "==> Done — https://trekov.in"
+echo "==> Done — https://trekov.com"
