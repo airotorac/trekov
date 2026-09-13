@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.trekov.app",
+      "sha256_cert_fingerprints": [
+        "08:F2:C8:78:35:1A:78:C7:99:9A:DC:A6:66:E3:9C:05:19:84:2C:F0:47:EA:04:52:89:22:72:CC:A1:1C:79:5B"
+      ]
+    }
+  }
+]
